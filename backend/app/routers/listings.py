@@ -19,6 +19,7 @@ def _to_listing_out(listing: Listing) -> ListingOut:
         url=listing.url,
         image_url=listing.image_url,
         latest_price=float(latest.price) if latest else None,
+        latest_original_price=float(latest.original_price) if latest and latest.original_price else None,
         latest_discount_pct=float(latest.discount_pct) if latest and latest.discount_pct else None,
     )
 

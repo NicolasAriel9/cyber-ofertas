@@ -57,15 +57,17 @@ inspection notes). Do these in order, a few days before the event:
    `backend/app/scraper/fetch.py::CATEGORY_SLUGS` if the real category slugs
    differ from what was seen during Phase 0.
 
-2. **Push the code to GitHub.** Git is installed locally but no repo exists
-   yet:
+2. **Push the code to GitHub.** The local git repo already exists with an
+   initial commit (done 2026-09-28). Just create an empty repo on GitHub and
+   push:
    ```
    cd "C:\proyectos python\cyber_ofertas"
-   git init
-   git add .
-   git commit -m "Initial Cyber Ofertas scaffold"
+   git remote add origin <your-new-github-repo-url>
+   git push -u origin master
    ```
-   Then create an empty repo on GitHub and push it there.
+   (Local git identity was set repo-local, not global -- `git config
+   user.name`/`user.email` inside this repo only. Set a global one if you'd
+   rather not repeat this per-project.)
 
 3. **Create a free Neon Postgres project** (neon.tech, no credit card) and
    copy its connection string -- you'll paste it as `DATABASE_URL` in step 5.

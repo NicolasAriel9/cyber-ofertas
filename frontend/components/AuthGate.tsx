@@ -1,15 +1,16 @@
 "use client";
 
 import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { ArrowRight, Loader2, Sparkles, TriangleAlert } from "lucide-react";
 import { useEffect, useState } from "react";
 import {
   api,
-  clearCredentials,
   getCredentials,
   getSubscriberId,
   setCredentials,
-  setSubscriberId,
+  setSubscriber,
 } from "@/lib/api";
+import { Avatar, Button, Input } from "@/components/ui";
 
 export default function AuthGate({ children }: { children: React.ReactNode }) {
   // Credentials/subscriber live in localStorage, which isn't available during
@@ -58,39 +59,55 @@ export default function AuthGate({ children }: { children: React.ReactNode }) {
 
   if (!subscriberId && subscribersQuery.data) {
     return (
-      <div className="mx-auto max-w-sm p-6">
-        <h1 className="mb-4 text-lg font-semibold">¿Quién eres?</h1>
-        <div className="flex flex-col gap-2">
+      <AuthShell title="¿Quién eres?" subtitle="Elige tu perfil para continuar">
+        <div className="flex flex-col gap-2.5">
           {subscribersQuery.data.map((s) => (
             <button
               key={s.id}
-              className="rounded border px-4 py-2 text-left hover:bg-gray-50"
+              className="group flex items-center gap-3 rounded-xl border border-border bg-surface px-4 py-3.5 text-left transition-all duration-150 hover:border-accent/40 hover:bg-surface-hover"
               onClick={() => {
-                setSubscriberId(s.id);
+                setSubscriber(s.id, s.name);
                 setSubscriberIdState(s.id);
               }}
             >
-              {s.name}
+              <Avatar name={s.name} className="h-9 w-9" />
+              <span className="font-medium">{s.name}</span>
+              <ArrowRight
+                size={16}
+                className="ml-auto text-muted opacity-0 transition-opacity group-hover:opacity-100"
+              />
             </button>
           ))}
         </div>
-      </div>
+      </AuthShell>
     );
   }
 
+  return children;
+}
+
+function AuthShell({
+  title,
+  subtitle,
+  children,
+}: {
+  title: string;
+  subtitle: string;
+  children: React.ReactNode;
+}) {
   return (
-    <>
-      {children}
-      <button
-        className="fixed bottom-4 right-4 rounded-full border bg-white px-3 py-1 text-xs text-gray-500 shadow"
-        onClick={() => {
-          clearCredentials();
-          setHasCreds(false);
-        }}
-      >
-        Cerrar sesión
-      </button>
-    </>
+    <div className="flex min-h-dvh items-center justify-center bg-bg px-4">
+      <div className="w-full max-w-sm animate-fade-in-up">
+        <div className="mb-6 flex flex-col items-center text-center">
+          <span className="brand-gradient mb-3 flex h-11 w-11 items-center justify-center rounded-xl text-accent-foreground shadow-md shadow-accent/25">
+            <Sparkles size={20} />
+          </span>
+          <h1 className="text-lg font-bold tracking-tight">{title}</h1>
+          <p className="mt-0.5 text-sm text-muted">{subtitle}</p>
+        </div>
+        {children}
+      </div>
+    </div>
   );
 }
 
@@ -98,42 +115,45 @@ function LoginForm({ onDone, error }: { onDone: () => void; error?: string }) {
   const [apiBase, setApiBase] = useState("http://127.0.0.1:8000");
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
+  const [submitting, setSubmitting] = useState(false);
 
   return (
-    <div className="mx-auto max-w-sm p-6">
-      <h1 className="mb-4 text-lg font-semibold">Conectar a Cyber Ofertas</h1>
-      {error && <p className="mb-3 text-sm text-red-600">{error}</p>}
+    <AuthShell title="Cyber Ofertas" subtitle="Conecta con tu backend para continuar">
+      {error && (
+        <div className="mb-4 flex items-start gap-2 rounded-xl bg-danger-bg px-3.5 py-2.5 text-sm text-danger">
+          <TriangleAlert size={16} className="mt-0.5 shrink-0" />
+          <span>{error}</span>
+        </div>
+      )}
       <form
-        className="flex flex-col gap-3"
+        className="flex flex-col gap-3 rounded-2xl border border-border bg-surface p-5"
         onSubmit={(e) => {
           e.preventDefault();
+          setSubmitting(true);
           setCredentials({ apiBase: apiBase.replace(/\/$/, ""), username, password });
           onDone();
         }}
       >
-        <input
-          className="rounded border px-3 py-2"
-          placeholder="URL del backend"
-          value={apiBase}
-          onChange={(e) => setApiBase(e.target.value)}
-        />
-        <input
-          className="rounded border px-3 py-2"
-          placeholder="Usuario"
-          value={username}
-          onChange={(e) => setUsername(e.target.value)}
-        />
-        <input
-          className="rounded border px-3 py-2"
-          type="password"
-          placeholder="Contraseña"
-          value={password}
-          onChange={(e) => setPassword(e.target.value)}
-        />
-        <button className="rounded bg-black px-4 py-2 text-white" type="submit">
-          Entrar
-        </button>
+        <label className="flex flex-col gap-1.5">
+          <span className="text-xs font-medium text-muted">URL del backend</span>
+          <Input value={apiBase} onChange={(e) => setApiBase(e.target.value)} />
+        </label>
+        <label className="flex flex-col gap-1.5">
+          <span className="text-xs font-medium text-muted">Usuario</span>
+          <Input value={username} onChange={(e) => setUsername(e.target.value)} autoFocus />
+        </label>
+        <label className="flex flex-col gap-1.5">
+          <span className="text-xs font-medium text-muted">Contraseña</span>
+          <Input
+            type="password"
+            value={password}
+            onChange={(e) => setPassword(e.target.value)}
+          />
+        </label>
+        <Button type="submit" className="mt-1.5 w-full" disabled={submitting}>
+          {submitting ? <Loader2 size={16} className="animate-spin" /> : "Entrar"}
+        </Button>
       </form>
-    </div>
+    </AuthShell>
   );
 }

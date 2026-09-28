@@ -1,5 +1,6 @@
 const AUTH_KEY = "cyber-ofertas-auth";
 const SUBSCRIBER_KEY = "cyber-ofertas-subscriber-id";
+const SUBSCRIBER_NAME_KEY = "cyber-ofertas-subscriber-name";
 
 export interface Credentials {
   apiBase: string;
@@ -27,8 +28,19 @@ export function getSubscriberId(): number | null {
   return raw ? Number(raw) : null;
 }
 
-export function setSubscriberId(id: number) {
+export function getSubscriberName(): string | null {
+  if (typeof window === "undefined") return null;
+  return window.localStorage.getItem(SUBSCRIBER_NAME_KEY);
+}
+
+export function setSubscriber(id: number, name: string) {
   window.localStorage.setItem(SUBSCRIBER_KEY, String(id));
+  window.localStorage.setItem(SUBSCRIBER_NAME_KEY, name);
+}
+
+export function clearSubscriber() {
+  window.localStorage.removeItem(SUBSCRIBER_KEY);
+  window.localStorage.removeItem(SUBSCRIBER_NAME_KEY);
 }
 
 class ApiError extends Error {
@@ -76,6 +88,7 @@ export interface Listing {
   url: string;
   image_url: string | null;
   latest_price: number | null;
+  latest_original_price: number | null;
   latest_discount_pct: number | null;
 }
 

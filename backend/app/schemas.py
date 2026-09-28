@@ -27,6 +27,7 @@ class ListingOut(BaseModel):
     url: str
     image_url: str | None
     latest_price: float | None
+    latest_original_price: float | None
     latest_discount_pct: float | None
 
 
