@@ -1,0 +1,55 @@
+# Render Blueprint for Cyber Ofertas.
+#
+# Usage (once the repo is pushed to GitHub): in the Render dashboard, "New +"
+# -> "Blueprint", point it at this repo. Render will read this file and
+# create all three services below in one go. You'll be prompted for every
+# `sync: false` value (secrets) during setup.
+#
+# Database: uses an external Neon Postgres instance (DATABASE_URL), not
+# Render's own managed Postgres -- Render's free Postgres tier expires after
+# 30 days, Neon's free tier doesn't.
+
+envVarGroups:
+  - name: cyber-ofertas-shared
+    envVars:
+      - key: DATABASE_URL
+        sync: false # paste the Neon connection string here when prompted
+      - key: BASIC_AUTH_USER
+        sync: false
+      - key: BASIC_AUTH_PASSWORD
+        sync: false
+      - key: TELEGRAM_BOT_TOKEN
+        sync: false # from @BotFather
+      - key: TELEGRAM_BOT_USERNAME
+        sync: false # bot's @username, without the @
+      - key: DEFAULT_DROP_ALERT_THRESHOLD_PCT
+        value: "5.0"
+
+services:
+  - name: cyber-ofertas-api
+    type: web
+    runtime: python
+    plan: free
+    rootDir: backend
+    buildCommand: pip install -r requirements.txt && alembic upgrade head
+    startCommand: uvicorn app.main:app --host 0.0.0.0 --port $PORT
+    envVarGroups:
+      - cyber-ofertas-shared
+
+  - name: cyber-ofertas-scraper
+    type: cron
+    runtime: python
+    plan: free
+    rootDir: backend
+    schedule: "*/20 * * * *" # every 20 min; no-ops outside an active Cyber window (see app/scraper/event_windows.py)
+    buildCommand: pip install -r requirements.txt
+    startCommand: python -m app.scraper.cyber_scraper
+    envVarGroups:
+      - cyber-ofertas-shared
+
+  - name: cyber-ofertas-frontend
+    type: web
+    runtime: static
+    rootDir: frontend
+    buildCommand: npm install && npm run build
+    staticPublishPath: ./out
