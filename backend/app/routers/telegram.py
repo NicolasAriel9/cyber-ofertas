@@ -3,7 +3,6 @@ from datetime import datetime, timedelta, timezone
 
 from fastapi import APIRouter, Depends, HTTPException, Request
 from sqlalchemy.orm import Session
-from starlette.concurrency import run_in_threadpool
 
 from app.auth import require_auth
 from app.config import settings
@@ -28,8 +27,10 @@ WELCOME_TEXT = (
 HELP_TEXT = (
     "🤖 *Cyber Ofertas*\n\n"
     "• Te aviso solo cuando algo que sigues baja de precio.\n"
-    "• Pregúntame lo que quieras del catálogo, ej: \"cuál es el notebook más "
-    'barato de Lenovo\" o \"ofertas de Samsung bajo 200 mil".\n'
+    "• Puedo buscar en el catálogo por marca, tienda, precio o descuento. Prueba:\n"
+    '   - "el notebook más barato de Lenovo"\n'
+    '   - "ofertas de Samsung bajo 300 mil"\n'
+    '   - "qué hay con más descuento en Falabella"\n'
     "• Si no estás vinculado todavía, hazlo desde la app → pestaña *Telegram*."
 )
 
@@ -112,6 +113,6 @@ async def telegram_webhook(request: Request, db: Session = Depends(get_db)):
         await send_message(chat_id, NOT_LINKED_TEXT, parse_mode="Markdown")
         return {"ok": True}
 
-    answer = await run_in_threadpool(answer_question, db, text)
+    answer = answer_question(db, text)
     await send_message(chat_id, answer)
     return {"ok": True}
