@@ -93,3 +93,24 @@ def test_similar_title_but_very_different_price_is_not_matched(db_session):
     )
 
     assert product_b.id != product_a.id
+
+
+def test_same_model_different_screen_size_is_not_matched(db_session):
+    product_a = find_or_create_product(
+        db_session,
+        title='55" Mini LED M70H 4K Vision AI Smart TV (2026)',
+        price=399990,
+        category_slug="tecnologia",
+        brand="Samsung",
+        image_url=None,
+    )
+    product_b = find_or_create_product(
+        db_session,
+        title='50" Mini LED M70H 4K Vision AI Smart TV (2026)',
+        price=349990,
+        category_slug="tecnologia",
+        brand="Samsung",
+        image_url=None,
+    )
+
+    assert product_a.id != product_b.id

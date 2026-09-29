@@ -23,6 +23,22 @@ def normalize_title(title: str) -> str:
     return title.strip()
 
 
+# Screen size ("55\"", "50''", "50 pulgadas") and storage/RAM ("512gb", "16 gb")
+# are the most common real differentiators between otherwise near-identical
+# titles (e.g. the same TV model in two sizes) -- fuzzy title similarity alone
+# treats "50" vs "55" as a single differing token in a long title and happily
+# scores it above the threshold, so these are checked as a hard guard.
+SIZE_INCHES_RE = re.compile(r"(\d{2,3})\s*(?:\"|''|pulgadas)")
+STORAGE_GB_RE = re.compile(r"(\d{2,4})\s*gb")
+
+
+def extract_spec_tokens(title: str) -> set[str]:
+    normalized = normalize_title(title)
+    tokens = {f'{m}in' for m in SIZE_INCHES_RE.findall(title)}
+    tokens |= {f"{m}gb" for m in STORAGE_GB_RE.findall(normalized)}
+    return tokens
+
+
 def find_or_create_product(
     db: Session,
     *,
@@ -41,6 +57,7 @@ def find_or_create_product(
             db.flush()
 
     normalized = normalize_title(title)
+    spec_tokens = extract_spec_tokens(title)
 
     query = db.query(Product)
     if category is not None:
@@ -53,6 +70,11 @@ def find_or_create_product(
         score = fuzz.token_sort_ratio(normalized, normalize_title(candidate.canonical_title))
         if score < TITLE_SIMILARITY_THRESHOLD:
             continue
+
+        candidate_spec_tokens = extract_spec_tokens(candidate.canonical_title)
+        if spec_tokens and candidate_spec_tokens and spec_tokens.isdisjoint(candidate_spec_tokens):
+            continue  # e.g. a 43" and a 55" TV with an otherwise near-identical title
+
         existing_prices = [
             float(snap.price)
             for listing in candidate.listings
