@@ -91,7 +91,7 @@ async def dispatch_alerts(db: Session, listing: Listing, snapshot: PriceSnapshot
             new_price=alert.new_price,
             url=listing.url,
         )
-        sent = await send_message(subscriber.telegram_chat_id, message)
+        sent = await send_message(subscriber.telegram_chat_id, message, parse_mode="Markdown")
         if sent:
             record_alert_sent(db, alert)
 

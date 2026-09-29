@@ -16,6 +16,26 @@ router = APIRouter(tags=["telegram"])
 
 LINK_CODE_TTL = timedelta(minutes=15)
 
+WELCOME_TEXT = (
+    "👋 ¡Hola! Soy el bot de *Cyber Ofertas*.\n\n"
+    "Te aviso apenas un producto que sigues baje de precio durante el Cyber.\n\n"
+    "Para vincular tu cuenta, abre la app, ve a la pestaña *Telegram* y toca "
+    '"Generar link de conexión" — te va a traer de vuelta aquí.'
+)
+
+HELP_TEXT = (
+    "🤖 *Cyber Ofertas* -- avisos de bajada de precio\n\n"
+    "• Para vincular tu cuenta: abre la app → pestaña *Telegram* → "
+    '"Generar link de conexión".\n'
+    "• Una vez vinculado, te escribo solo cuando algo que sigues baja de precio.\n"
+    "• No necesitas escribirme nada más -- este bot no responde otros comandos."
+)
+
+LINK_EXPIRED_TEXT = (
+    "⚠️ Ese link ya no es válido (expiró o generaste uno nuevo). Vuelve a la app, "
+    "pestaña *Telegram*, y toca de nuevo \"Generar link de conexión\"."
+)
+
 
 @router.post("/subscribers/{subscriber_id}/telegram-link-code", response_model=TelegramLinkCodeOut, dependencies=[Depends(require_auth)])
 def create_link_code(subscriber_id: int, db: Session = Depends(get_db)):
@@ -39,28 +59,43 @@ def create_link_code(subscriber_id: int, db: Session = Depends(get_db)):
 async def telegram_webhook(request: Request, db: Session = Depends(get_db)):
     update = await request.json()
     message = update.get("message", {})
-    text = message.get("text", "")
+    text = message.get("text", "").strip()
     chat_id = message.get("chat", {}).get("id")
 
-    if not text.startswith("/start ") or chat_id is None:
+    if chat_id is None:
         return {"ok": True}
 
-    code = text.removeprefix("/start ").strip()
-    subscriber = (
-        db.query(Subscriber)
-        .filter(Subscriber.link_code == code)
-        .first()
-    )
-    if subscriber is None or subscriber.link_code_expires_at is None:
+    if text == "/start":
+        await send_message(chat_id, WELCOME_TEXT, parse_mode="Markdown")
         return {"ok": True}
 
-    if ensure_aware(subscriber.link_code_expires_at) < datetime.now(timezone.utc):
+    if text.startswith("/start "):
+        code = text.removeprefix("/start ").strip()
+        subscriber = db.query(Subscriber).filter(Subscriber.link_code == code).first()
+
+        is_expired = subscriber is not None and (
+            subscriber.link_code_expires_at is None
+            or ensure_aware(subscriber.link_code_expires_at) < datetime.now(timezone.utc)
+        )
+        if subscriber is None or is_expired:
+            await send_message(chat_id, LINK_EXPIRED_TEXT, parse_mode="Markdown")
+            return {"ok": True}
+
+        subscriber.telegram_chat_id = chat_id
+        subscriber.link_code = None
+        subscriber.link_code_expires_at = None
+        db.commit()
+
+        await send_message(
+            chat_id,
+            f"✅ *¡Listo, {subscriber.name}!*\nQuedaste conectado. Te voy a avisar apenas algo que sigues baje de precio.",
+            parse_mode="Markdown",
+        )
         return {"ok": True}
 
-    subscriber.telegram_chat_id = chat_id
-    subscriber.link_code = None
-    subscriber.link_code_expires_at = None
-    db.commit()
+    if text in ("/ayuda", "/help"):
+        await send_message(chat_id, HELP_TEXT, parse_mode="Markdown")
+        return {"ok": True}
 
-    await send_message(chat_id, f"✅ Listo {subscriber.name}, quedaste conectado a Cyber Ofertas.")
+    await send_message(chat_id, "No entendí ese mensaje 🤔 Escribe /ayuda para ver qué puedo hacer.")
     return {"ok": True}
