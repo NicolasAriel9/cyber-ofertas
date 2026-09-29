@@ -21,6 +21,7 @@ class ScrapedOffer:
     price: float
     original_price: float | None
     image_url: str | None
+    brand: str | None = None
 
 
 def parse_category_html(html: str, category_slug: str) -> list[ScrapedOffer]:

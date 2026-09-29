@@ -59,6 +59,7 @@ def to_offer(list_item: dict) -> ScrapedOffer | None:
         price=float(price),
         original_price=None,  # Paris's JSON-LD doesn't expose a crossed/original price
         image_url=item.get("image"),
+        brand=(item.get("brand") or {}).get("name"),
     )
 
 

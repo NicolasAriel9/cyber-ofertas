@@ -46,7 +46,7 @@ def upsert_offer(db: Session, offer: ScrapedOffer, category_slug: str) -> tuple[
             title=offer.title,
             price=offer.price,
             category_slug=category_slug,
-            brand=None,
+            brand=offer.brand,
             image_url=offer.image_url,
         )
         listing = Listing(
@@ -62,6 +62,8 @@ def upsert_offer(db: Session, offer: ScrapedOffer, category_slug: str) -> tuple[
     else:
         listing.last_seen_at = listing.last_seen_at
         listing.is_active = True
+        if offer.brand and not listing.product.brand:
+            listing.product.brand = offer.brand
 
     discount_pct = None
     if offer.original_price and offer.original_price > 0:

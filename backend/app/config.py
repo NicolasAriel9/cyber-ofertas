@@ -10,6 +10,8 @@ class Settings(BaseSettings):
     telegram_bot_token: str = ""
     telegram_bot_username: str = ""
     default_drop_alert_threshold_pct: float = 5.0
+    anthropic_api_key: str = ""
+    anthropic_model: str = "claude-haiku-4-5-20251001"
 
 
 settings = Settings()

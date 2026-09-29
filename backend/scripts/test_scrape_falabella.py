@@ -69,6 +69,7 @@ def to_offer(item: dict) -> ScrapedOffer | None:
         price=parse_clp(current["price"][0]),
         original_price=parse_clp(original["price"][0]) if original else None,
         image_url=image_urls[0] if image_urls else None,
+        brand=item.get("brand"),
     )
 
 

@@ -3,12 +3,14 @@ from datetime import datetime, timedelta, timezone
 
 from fastapi import APIRouter, Depends, HTTPException, Request
 from sqlalchemy.orm import Session
+from starlette.concurrency import run_in_threadpool
 
 from app.auth import require_auth
 from app.config import settings
 from app.db import get_db
 from app.models import Subscriber
 from app.schemas import TelegramLinkCodeOut
+from app.services.assistant import answer_question
 from app.services.telegram_client import send_message
 from app.utils import ensure_aware
 
@@ -24,11 +26,16 @@ WELCOME_TEXT = (
 )
 
 HELP_TEXT = (
-    "🤖 *Cyber Ofertas* -- avisos de bajada de precio\n\n"
-    "• Para vincular tu cuenta: abre la app → pestaña *Telegram* → "
-    '"Generar link de conexión".\n'
-    "• Una vez vinculado, te escribo solo cuando algo que sigues baja de precio.\n"
-    "• No necesitas escribirme nada más -- este bot no responde otros comandos."
+    "🤖 *Cyber Ofertas*\n\n"
+    "• Te aviso solo cuando algo que sigues baja de precio.\n"
+    "• Pregúntame lo que quieras del catálogo, ej: \"cuál es el notebook más "
+    'barato de Lenovo\" o \"ofertas de Samsung bajo 200 mil".\n'
+    "• Si no estás vinculado todavía, hazlo desde la app → pestaña *Telegram*."
+)
+
+NOT_LINKED_TEXT = (
+    "Todavía no vinculé tu cuenta 🔒 Abre la app, ve a la pestaña *Telegram* y "
+    'toca "Generar link de conexión" para poder ayudarte.'
 )
 
 LINK_EXPIRED_TEXT = (
@@ -97,5 +104,14 @@ async def telegram_webhook(request: Request, db: Session = Depends(get_db)):
         await send_message(chat_id, HELP_TEXT, parse_mode="Markdown")
         return {"ok": True}
 
-    await send_message(chat_id, "No entendí ese mensaje 🤔 Escribe /ayuda para ver qué puedo hacer.")
+    if not text:
+        return {"ok": True}
+
+    subscriber = db.query(Subscriber).filter(Subscriber.telegram_chat_id == chat_id).first()
+    if subscriber is None:
+        await send_message(chat_id, NOT_LINKED_TEXT, parse_mode="Markdown")
+        return {"ok": True}
+
+    answer = await run_in_threadpool(answer_question, db, text)
+    await send_message(chat_id, answer)
     return {"ok": True}

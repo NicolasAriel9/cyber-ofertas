@@ -24,6 +24,10 @@ envVarGroups:
         sync: false # bot's @username, without the @
       - key: DEFAULT_DROP_ALERT_THRESHOLD_PCT
         value: "5.0"
+      - key: ANTHROPIC_API_KEY
+        sync: false # from console.anthropic.com -- powers the Telegram assistant
+      - key: ANTHROPIC_MODEL
+        value: "claude-haiku-4-5-20251001"
 
 services:
   - name: cyber-ofertas-api
