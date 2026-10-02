@@ -45,17 +45,23 @@ needed.
 
 ## What's left before this is fully live (do close to Oct 5, 2026)
 
-Everything below was intentionally deferred because `cyber.cl`'s real catalog
-isn't populated yet outside an active event window (confirmed 2026-09-28, see
-inspection notes). Do these in order, a few days before the event:
+Step 1 (the scraper) is done; the rest needs accounts only you can create.
 
-1. **Re-inspect cyber.cl and implement the real parser.**
-   Use Chrome (claude-in-chrome or manually) on `https://cyber.cl/cyber/marcas/<category>`
-   once the event is live, check the Network tab for how offers are actually
-   loaded, then fill in `backend/app/scraper/parser.py::parse_category_html`
-   (currently raises `NotImplementedError` on purpose). Update
-   `backend/app/scraper/fetch.py::CATEGORY_SLUGS` if the real category slugs
-   differ from what was seen during Phase 0.
+1. ~~**Re-inspect cyber.cl and implement the real parser.**~~ Done 2026-10-01.
+   cyber.cl turned out to be a brand directory with a public JSON API
+   (`app.cyber.cl/api/`) but **no products or prices** -- see
+   `docs/cyber_cl_inspection_notes.md`. The scraper now reads cyber.cl for the
+   official categories and participating stores, and pulls the offers from
+   per-store scrapers (`backend/app/scraper/stores/`): Falabella, Paris,
+   Ripley, Hites, Sodimac, Easy and Jumbo. Run it locally with:
+   ```
+   cd backend
+   set FORCE_SCRAPE=1
+   .venv\Scripts\python.exe -m app.scraper.cyber_scraper
+   ```
+   Knobs (env vars): `SCRAPE_MAX_PAGES` (pages per department, default 10),
+   `SCRAPE_STORES` (e.g. `falabella,paris`), `SCRAPE_REQUEST_DELAY` (seconds
+   between requests to the same host, default 1).
 
 2. **Push the code to GitHub.** The local git repo already exists with an
    initial commit (done 2026-09-28). Just create an empty repo on GitHub and

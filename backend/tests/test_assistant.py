@@ -21,6 +21,8 @@ def _seed_catalog(db_session):
             external_id=f"{store.slug}-{product.id}",
             title=product.canonical_title,
             url=f"https://{store.slug}.cl/p/{product.id}",
+            current_price=price,
+            current_discount_pct=discount,
         )
         db_session.add(listing)
         db_session.flush()

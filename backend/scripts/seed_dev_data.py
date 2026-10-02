@@ -26,6 +26,9 @@ listing_falabella = Listing(
     external_id="falabella-123",
     title="Notebook Lenovo IdeaPad 3 15.6\" 8GB RAM 256GB SSD",
     url="https://falabella.com/p/123",
+    current_price=349990,
+    current_original_price=499990,
+    current_discount_pct=30,
 )
 listing_paris = Listing(
     product_id=notebook.id,
@@ -33,6 +36,9 @@ listing_paris = Listing(
     external_id="paris-456",
     title="Notebook Lenovo IdeaPad 3 15.6 pulgadas 8GB",
     url="https://paris.cl/p/456",
+    current_price=359990,
+    current_original_price=459990,
+    current_discount_pct=21.7,
 )
 db.add_all([listing_falabella, listing_paris])
 db.flush()

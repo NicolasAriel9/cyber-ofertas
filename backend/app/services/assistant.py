@@ -7,13 +7,15 @@ design, but it's still pattern matching, not true open-ended understanding.
 
 import re
 
-from sqlalchemy import or_
+from sqlalchemy import func, or_
 from sqlalchemy.orm import Session
 
 from app.models import Listing, Product, Store
 
 MAX_RESULTS = 8
 DEFAULT_LIMIT = 5
+MIN_PRODUCTS_PER_BRAND = 2
+GENERIC_BRANDS = {"generico", "genérico", "generica", "sin marca", "otras marcas", "otro", "otros"}
 
 # --- sort / superlative intent -------------------------------------------------
 
@@ -126,7 +128,14 @@ def parse_query(db: Session, text: str) -> dict:
             break
 
     brand = None
-    brands = [b for (b,) in db.query(Product.brand).distinct().all() if b]
+    # Only brands with a few products: real catalogs are full of one-off junk
+    # brand values ("1", "Generico", "Gamer"...) that would hijack keywords.
+    brands = [
+        b
+        for (b,) in db.query(Product.brand).filter(Product.brand.is_not(None)).group_by(Product.brand)
+        .having(func.count(Product.id) >= MIN_PRODUCTS_PER_BRAND)
+        if len(b) >= 2 and not b.isdigit() and b.lower() not in STOPWORDS and b.lower() not in GENERIC_BRANDS
+    ]
     for candidate in sorted(brands, key=len, reverse=True):
         if re.search(rf"\b{re.escape(candidate.lower())}\b", remaining):
             brand = candidate
@@ -192,34 +201,29 @@ def search_products(
     if store:
         query = query.join(Store).filter(Store.slug == store)
 
-    rows = []
-    for listing in query.limit(300).all():  # cap before Python-side price filter/sort
-        snapshot = listing.price_snapshots[-1] if listing.price_snapshots else None
-        if snapshot is None:
-            continue
-        price = float(snapshot.price)
-        if max_price is not None and price > max_price:
-            continue
-        if min_price is not None and price < min_price:
-            continue
-        rows.append(
-            {
-                "title": listing.title,
-                "store": listing.store.name,
-                "price": price,
-                "discount_pct": float(snapshot.discount_pct) if snapshot.discount_pct else None,
-                "url": listing.url,
-            }
-        )
+    query = query.filter(Listing.current_price.is_not(None))
+    if max_price is not None:
+        query = query.filter(Listing.current_price <= max_price)
+    if min_price is not None:
+        query = query.filter(Listing.current_price >= min_price)
 
     if sort == "price_desc":
-        rows.sort(key=lambda r: r["price"], reverse=True)
+        query = query.order_by(Listing.current_price.desc())
     elif sort == "price_asc":
-        rows.sort(key=lambda r: r["price"])
+        query = query.order_by(Listing.current_price.asc())
     else:
-        rows.sort(key=lambda r: r["discount_pct"] or 0, reverse=True)
+        query = query.order_by(Listing.current_discount_pct.desc().nulls_last())
 
-    return rows[: min(limit, MAX_RESULTS)]
+    return [
+        {
+            "title": listing.title,
+            "store": listing.store.name,
+            "price": float(listing.current_price),
+            "discount_pct": float(listing.current_discount_pct) if listing.current_discount_pct else None,
+            "url": listing.url,
+        }
+        for listing in query.limit(min(limit, MAX_RESULTS)).all()
+    ]
 
 
 def format_clp(value: float) -> str:

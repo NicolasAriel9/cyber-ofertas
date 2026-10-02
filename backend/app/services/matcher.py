@@ -6,11 +6,14 @@ are an acceptable tradeoff over false positives (wrongly merged products).
 """
 
 import re
+from collections import defaultdict
+from dataclasses import dataclass, field
 
-from rapidfuzz import fuzz
+from rapidfuzz import fuzz, process
+from sqlalchemy import func
 from sqlalchemy.orm import Session
 
-from app.models import Category, Product
+from app.models import Category, Listing, Product
 
 TITLE_SIMILARITY_THRESHOLD = 85
 MAX_PRICE_RATIO_DIFF = 0.35  # candidate prices must be within +/-35% of each other
@@ -39,6 +42,81 @@ def extract_spec_tokens(title: str) -> set[str]:
     return tokens
 
 
+@dataclass
+class _Bucket:
+    product_ids: list[int] = field(default_factory=list)
+    titles: list[str] = field(default_factory=list)  # normalized, parallel to product_ids
+    spec_tokens: list[set[str]] = field(default_factory=list)  # from the raw title (needs the " for inches)
+
+
+class ProductIndex:
+    """In-memory view of existing products for one scrape run.
+
+    Matching used to load every product of the category from the DB and
+    fuzzy-compare them in a Python loop *per offer*, which is quadratic and
+    unusable at tens of thousands of offers. The index is built once, compared
+    with rapidfuzz's C-level batch scorer, and updated as products are created.
+    """
+
+    def __init__(self, db: Session) -> None:
+        self.buckets: dict[int | None, _Bucket] = defaultdict(_Bucket)
+        self.prices: dict[int, float] = {}
+        self.categories: dict[str, Category] = {c.slug: c for c in db.query(Category).all()}
+
+        for product_id, title, category_id in db.query(Product.id, Product.canonical_title, Product.category_id):
+            self._add(product_id, title, category_id)
+        for product_id, avg_price in (
+            db.query(Listing.product_id, func.avg(Listing.current_price))
+            .filter(Listing.current_price.is_not(None))
+            .group_by(Listing.product_id)
+        ):
+            self.prices[product_id] = float(avg_price)
+
+    def _add(self, product_id: int, title: str, category_id: int | None) -> None:
+        bucket = self.buckets[category_id]
+        bucket.product_ids.append(product_id)
+        bucket.titles.append(normalize_title(title))
+        bucket.spec_tokens.append(extract_spec_tokens(title))
+
+    def add(self, product: Product, price: float) -> None:
+        self._add(product.id, product.canonical_title, product.category_id)
+        self.prices[product.id] = price
+
+    def get_or_create_category(self, db: Session, slug: str) -> Category:
+        category = self.categories.get(slug)
+        if category is None:
+            category = db.query(Category).filter(Category.slug == slug).first()
+        if category is None:
+            category = Category(name=slug.replace("-", " ").title(), slug=slug)
+            db.add(category)
+            db.flush()
+        self.categories[slug] = category
+        return category
+
+    def best_match(self, title: str, price: float, category_id: int | None) -> int | None:
+        bucket = self.buckets.get(category_id)
+        if not bucket or not bucket.titles:
+            return None
+        spec_tokens = extract_spec_tokens(title)
+        matches = process.extract(
+            normalize_title(title),
+            bucket.titles,
+            scorer=fuzz.token_sort_ratio,
+            score_cutoff=TITLE_SIMILARITY_THRESHOLD,
+            limit=10,
+        )
+        for _, _score, position in matches:  # best score first
+            candidate_tokens = bucket.spec_tokens[position]
+            if spec_tokens and candidate_tokens and spec_tokens.isdisjoint(candidate_tokens):
+                continue  # e.g. a 43" and a 55" TV with an otherwise near-identical title
+            product_id = bucket.product_ids[position]
+            known_price = self.prices.get(product_id)
+            if known_price and abs(price - known_price) / known_price > MAX_PRICE_RATIO_DIFF:
+                continue
+            return product_id
+        return None
+
+
 def find_or_create_product(
     db: Session,
     *,
@@ -47,56 +125,19 @@ def find_or_create_product(
     category_slug: str | None,
     brand: str | None,
     image_url: str | None,
+    index: ProductIndex | None = None,
 ) -> Product:
-    category = None
-    if category_slug:
-        category = db.query(Category).filter(Category.slug == category_slug).first()
-        if category is None:
-            category = Category(name=category_slug.replace("-", " ").title(), slug=category_slug)
-            db.add(category)
-            db.flush()
+    if index is None:
+        index = ProductIndex(db)
+    category = index.get_or_create_category(db, category_slug) if category_slug else None
+    category_id = category.id if category else None
 
-    normalized = normalize_title(title)
-    spec_tokens = extract_spec_tokens(title)
+    product_id = index.best_match(title, price, category_id)
+    if product_id is not None:
+        return db.get(Product, product_id)
 
-    query = db.query(Product)
-    if category is not None:
-        query = query.filter(Product.category_id == category.id)
-    candidates = query.all()
-
-    best_match: Product | None = None
-    best_score = 0.0
-    for candidate in candidates:
-        score = fuzz.token_sort_ratio(normalized, normalize_title(candidate.canonical_title))
-        if score < TITLE_SIMILARITY_THRESHOLD:
-            continue
-
-        candidate_spec_tokens = extract_spec_tokens(candidate.canonical_title)
-        if spec_tokens and candidate_spec_tokens and spec_tokens.isdisjoint(candidate_spec_tokens):
-            continue  # e.g. a 43" and a 55" TV with an otherwise near-identical title
-
-        existing_prices = [
-            float(snap.price)
-            for listing in candidate.listings
-            for snap in listing.price_snapshots[-1:]
-        ]
-        if existing_prices:
-            avg_price = sum(existing_prices) / len(existing_prices)
-            if avg_price > 0 and abs(price - avg_price) / avg_price > MAX_PRICE_RATIO_DIFF:
-                continue
-        if score > best_score:
-            best_score = score
-            best_match = candidate
-
-    if best_match is not None:
-        return best_match
-
-    product = Product(
-        canonical_title=title,
-        category_id=category.id if category else None,
-        brand=brand,
-        image_url=image_url,
-    )
+    product = Product(canonical_title=title, category_id=category_id, brand=brand, image_url=image_url)
     db.add(product)
     db.flush()
+    index.add(product, price)
     return product

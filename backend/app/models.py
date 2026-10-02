@@ -69,6 +69,12 @@ class Listing(Base):
     first_seen_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
     last_seen_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
     is_active: Mapped[bool] = mapped_column(Boolean, default=True)
+    # Denormalized copy of the latest PriceSnapshot so the listings endpoint can
+    # filter/sort/paginate in SQL instead of loading every snapshot -- with
+    # tens of thousands of scraped offers, doing that in Python doesn't scale.
+    current_price: Mapped[float | None] = mapped_column(Numeric(12, 2), default=None, index=True)
+    current_original_price: Mapped[float | None] = mapped_column(Numeric(12, 2), default=None)
+    current_discount_pct: Mapped[float | None] = mapped_column(Numeric(5, 2), default=None, index=True)
 
     product: Mapped[Product] = relationship(back_populates="listings")
     store: Mapped[Store] = relationship(back_populates="listings")

@@ -1,26 +1,41 @@
 """Entrypoint run by the Render Cron Job (python -m app.scraper.cyber_scraper).
 
-For each known category: fetch the page, parse offers, upsert into the data
-model via the matcher, record a new price snapshot per listing, and dispatch
-any resulting price-drop alerts over Telegram. Skips entirely outside an
-active Cyber event window (see event_windows.py) unless FORCE_SCRAPE=1.
+1. Reads cyber.cl's public API for the current event: syncs the official
+   category list and checks which of our supported stores participate.
+2. For each participating store, walks every department (page by page, up to
+   SCRAPE_MAX_PAGES) and upserts each discounted offer: matcher -> Listing ->
+   new PriceSnapshot -> Telegram price-drop alerts.
+3. Listings of a fully scraped store that weren't seen this run are marked
+   inactive (the offer ended or dropped out of the store's top pages).
+
+Skips entirely outside an active Cyber event window (see event_windows.py)
+unless FORCE_SCRAPE=1. Limit to some stores with SCRAPE_STORES=falabella,paris.
 """
 
 import asyncio
 import logging
+import os
+import time
+from datetime import datetime, timezone
 
 from sqlalchemy.orm import Session
 
 from app.db import SessionLocal
 from app.models import Listing, PriceSnapshot, Store
+from app.scraper import cyber_cl
 from app.scraper.event_windows import is_scrape_window_active
-from app.scraper.fetch import CATEGORY_SLUGS, fetch_category_page
-from app.scraper.parser import ScrapedOffer, parse_category_html
+from app.scraper.http import PoliteClient
+from app.scraper.parser import ScrapedOffer
+from app.scraper.stores import ALL_STORES, StoreScraper
 from app.services.alerts import check_price_drop, record_alert_sent
-from app.services.matcher import find_or_create_product
+from app.services.matcher import ProductIndex, find_or_create_product
 from app.services.telegram_client import format_price_drop_message, send_message
 
 logger = logging.getLogger(__name__)
+
+
+def utcnow() -> datetime:
+    return datetime.now(timezone.utc)
 
 
 def get_or_create_store(db: Session, slug: str, name: str) -> Store:
@@ -32,7 +47,9 @@ def get_or_create_store(db: Session, slug: str, name: str) -> Store:
     return store
 
 
-def upsert_offer(db: Session, offer: ScrapedOffer, category_slug: str) -> tuple[Listing, PriceSnapshot]:
+def upsert_offer(
+    db: Session, offer: ScrapedOffer, category_slug: str, index: ProductIndex | None = None
+) -> tuple[Listing, PriceSnapshot]:
     store = get_or_create_store(db, offer.store_slug, offer.store_name)
 
     listing = (
@@ -48,6 +65,7 @@ def upsert_offer(db: Session, offer: ScrapedOffer, category_slug: str) -> tuple[
             category_slug=category_slug,
             brand=offer.brand,
             image_url=offer.image_url,
+            index=index,
         )
         listing = Listing(
             product_id=product.id,
@@ -60,14 +78,17 @@ def upsert_offer(db: Session, offer: ScrapedOffer, category_slug: str) -> tuple[
         db.add(listing)
         db.flush()
     else:
-        listing.last_seen_at = listing.last_seen_at
+        listing.title = offer.title
+        listing.url = offer.url
+        listing.image_url = offer.image_url or listing.image_url
+        listing.last_seen_at = utcnow()
         listing.is_active = True
         if offer.brand and not listing.product.brand:
             listing.product.brand = offer.brand
 
     discount_pct = None
     if offer.original_price and offer.original_price > 0:
-        discount_pct = (offer.original_price - offer.price) / offer.original_price * 100
+        discount_pct = round((offer.original_price - offer.price) / offer.original_price * 100, 2)
 
     snapshot = PriceSnapshot(
         listing_id=listing.id,
@@ -76,6 +97,9 @@ def upsert_offer(db: Session, offer: ScrapedOffer, category_slug: str) -> tuple[
         discount_pct=discount_pct,
     )
     db.add(snapshot)
+    listing.current_price = offer.price
+    listing.current_original_price = offer.original_price
+    listing.current_discount_pct = discount_pct
     db.flush()
     return listing, snapshot
 
@@ -98,6 +122,65 @@ async def dispatch_alerts(db: Session, listing: Listing, snapshot: PriceSnapshot
             record_alert_sent(db, alert)
 
 
+def selected_stores() -> list[StoreScraper]:
+    wanted = {s.strip() for s in os.environ.get("SCRAPE_STORES", "").split(",") if s.strip()}
+    return [s for s in ALL_STORES if not wanted or s.slug in wanted]
+
+
+def sync_cyber_cl(db: Session, client: PoliteClient) -> dict[str, dict]:
+    """Sync categories from cyber.cl and return its brands keyed by name.
+    Failures are logged, not fatal: stores can still be scraped without it."""
+    try:
+        event = cyber_cl.fetch_current_event(client)
+        cyber_cl.sync_categories(db, cyber_cl.fetch_event_categories(client, event["slug"]))
+        brands = cyber_cl.fetch_event_brands(client, event["slug"])
+        db.commit()
+        logger.info("cyber.cl: event %s, %d participating brands", event["name"], len(brands))
+        return {b["name"]: b for b in brands}
+    except Exception:
+        logger.exception("Could not read cyber.cl's API -- continuing without it")
+        db.rollback()
+        return {}
+
+
+async def scrape_store(db: Session, client: PoliteClient, scraper: StoreScraper, index: ProductIndex,
+                       brands: dict[str, dict]) -> int:
+    store = cyber_cl.sync_store_from_brand(db, scraper.slug, scraper.name, brands.get(scraper.cyber_brand_name))
+    db.commit()
+    run_started = utcnow()
+    seen: set[str] = set()
+    failed_departments = 0
+
+    for department in scraper.departments:
+        started = time.monotonic()
+        count = 0
+        try:
+            for offers in scraper.iter_department(client, department):
+                for offer in offers:
+                    if offer.external_id in seen:
+                        continue  # same product listed under two departments
+                    seen.add(offer.external_id)
+                    listing, snapshot = upsert_offer(db, offer, offer.category_slug, index)
+                    await dispatch_alerts(db, listing, snapshot)
+                    count += 1
+                db.commit()
+        except Exception:
+            failed_departments += 1
+            db.rollback()
+            logger.exception("%s / %s failed after %d offers", scraper.name, department.label, count)
+        logger.info("%s / %s: %d offers (%.0fs)", scraper.name, department.label, count, time.monotonic() - started)
+
+    if seen and not failed_departments:
+        stale = (
+            db.query(Listing)
+            .filter(Listing.store_id == store.id, Listing.is_active.is_(True), Listing.last_seen_at < run_started)
+            .update({Listing.is_active: False}, synchronize_session=False)
+        )
+        db.commit()
+        logger.info("%s: marked %d listings inactive", scraper.name, stale)
+    return len(seen)
+
+
 async def run_scrape() -> None:
     if not is_scrape_window_active():
         logger.info("No active Cyber event window -- skipping scrape.")
@@ -105,26 +188,20 @@ async def run_scrape() -> None:
 
     db = SessionLocal()
     try:
-        for category_slug in CATEGORY_SLUGS:
-            try:
-                html = fetch_category_page(category_slug)
-                offers = parse_category_html(html, category_slug)
-            except NotImplementedError:
-                logger.warning("Parser not implemented yet for %s -- skipping.", category_slug)
-                continue
-            except Exception:
-                logger.exception("Failed to fetch/parse category %s", category_slug)
-                continue
-
-            for offer in offers:
-                listing, snapshot = upsert_offer(db, offer, category_slug)
-                db.commit()
-                await dispatch_alerts(db, listing, snapshot)
-                db.commit()
+        with PoliteClient() as client:
+            brands = sync_cyber_cl(db, client)
+            index = ProductIndex(db)
+            totals = {}
+            for scraper in selected_stores():
+                if brands and scraper.cyber_brand_name not in brands:
+                    logger.info("%s is not in cyber.cl's participant list -- scraping anyway", scraper.name)
+                totals[scraper.slug] = await scrape_store(db, client, scraper, index, brands)
+            logger.info("Scrape finished: %s (total %d)", totals, sum(totals.values()))
     finally:
         db.close()
 
 
 if __name__ == "__main__":
-    logging.basicConfig(level=logging.INFO)
+    logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s: %(message)s")
+    logging.getLogger("httpx").setLevel(logging.WARNING)
     asyncio.run(run_scrape())

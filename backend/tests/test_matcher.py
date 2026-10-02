@@ -25,6 +25,7 @@ def test_same_product_different_stores_is_matched(db_session):
     db_session.add(listing)
     db_session.flush()
     db_session.add(PriceSnapshot(listing_id=listing.id, price=349990))
+    listing.current_price = 349990
     db_session.flush()
 
     product_b = find_or_create_product(
@@ -79,6 +80,7 @@ def test_similar_title_but_very_different_price_is_not_matched(db_session):
     db_session.add(listing)
     db_session.flush()
     db_session.add(PriceSnapshot(listing_id=listing.id, price=129990))
+    listing.current_price = 129990
     db_session.flush()
 
     # Same title but wildly different price -- likely a different storage

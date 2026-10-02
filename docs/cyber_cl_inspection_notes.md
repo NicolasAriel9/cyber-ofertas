@@ -37,3 +37,36 @@ Al visitar `/cyber/marcas/tecnologia` con un navegador real (Chrome, vía Claude
   (b) los datos quedan embebidos en el HTML/RSC payload servido inicialmente (parseable sin headless browser), o
   (c) hace falta renderizar con Playwright porque todo se arma client-side tras hidratación.
 - Mientras tanto, el resto del proyecto (modelos de datos, API backend, frontend, bot de Telegram, deploy) puede construirse en paralelo usando fixtures/datos de prueba, sin bloquear en este hallazgo.
+
+---
+
+# Re-inspección 2026-10-01 (4 días antes del evento) — resuelto
+
+## cyber.cl tiene una API JSON pública (no hace falta parsear RSC)
+Buscando en los bundles JS del sitio aparecieron las rutas de su backend, servido en `https://app.cyber.cl/api/` (JSON plano, sin auth):
+
+| Endpoint | Contenido |
+|---|---|
+| `/api/events/current/` | Evento activo: `{"id":35,"name":"Cyber Monday","slug":"cyber","start":"2026-10-05T03:00:00Z","end":"2026-10-08T03:00:00Z",...}` |
+| `/api/events/cyber/brands/` | **524 marcas participantes**, cada una con `name`, `logo`, `url`, `category` |
+| `/api/events/cyber/categories/` | Las 25 categorías oficiales (Tecnología, Hogar, Vestuario y Calzado...) |
+| `/api/events/cyber/promotions/`, `/api/promotions/`, `/api/search/?q=` | Promos destacadas / búsqueda de marcas |
+
+## Pero cyber.cl NO publica productos ni precios
+La API (y el sitio) es un **directorio de marcas que redirige a cada tienda** — no existe un catálogo de productos/ofertas en cyber.cl, ni durante ni fuera del evento. El hallazgo del 2026-09-28 ("catálogo vacío") era en realidad esto: no hay catálogo que poblar.
+
+## Implicancia: scrapers por tienda
+- `backend/app/scraper/cyber_cl.py` usa la API para: categorías oficiales (las `Category` de la app son un espejo de las de cyber.cl), y logos/participación de las tiendas.
+- Las ofertas salen de scrapers por tienda en `backend/app/scraper/stores/`:
+
+| Tienda | Fuente de datos | Notas |
+|---|---|---|
+| Falabella, Sodimac | `__NEXT_DATA__` de las páginas de categoría (`?page=N`) | Filtro server-side "20% dcto y más". Precio CMR (tarjeta) solo como fallback. |
+| Ripley | `__NEXT_DATA__` → `findabilityProps.data.products` | El JSON no trae URL; se reconstruye `/<slug del nombre>-<parentProductID>` (verificado 200). |
+| Hites | HTML SFCC, atributo `data-gtmselectitem` (JSON) de cada tile, `?start=&sz=48` | |
+| Paris, Easy, Jumbo | API pública de Constructor.io (`ac.cnstrc.com/browse/group_id/<id>?key=...`) | Keys públicas del bundle de Cencosud (`cnstrc.com/js/cust/cencosud_*.js`). Paris pagina client-side, su HTML siempre muestra la página 1. Paris solo expone precio final + % dcto → el precio normal se reconstruye. |
+
+**No cubiertas:** Lider.cl (desafío anti-bot "Robot or human?"), Tottus (Cloudflare 526), Mercado Libre (API de listados requiere OAuth).
+
+## Volumen
+Las tiendas tienen decenas de miles de productos con descuento por departamento (Falabella Tecnología ≥20% dcto: ~80.000; Ripley Tecno: ~72.000). El scraper recorre todos los departamentos en el orden de relevancia de cada tienda, hasta `SCRAPE_MAX_PAGES` (default 10) páginas por departamento.
