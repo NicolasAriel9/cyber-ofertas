@@ -62,6 +62,9 @@ class ProductIndex:
         self.buckets: dict[int | None, _Bucket] = defaultdict(_Bucket)
         self.prices: dict[int, float] = {}
         self.categories: dict[str, Category] = {c.slug: c for c in db.query(Category).all()}
+        # Products created without a flush (batched scrapes) have no id yet;
+        # they're indexed by register_pending() once their batch is flushed.
+        self.pending: list[tuple[Product, float]] = []
 
         for product_id, title, category_id in db.query(Product.id, Product.canonical_title, Product.category_id):
             self._add(product_id, title, category_id)
@@ -81,6 +84,11 @@ class ProductIndex:
     def add(self, product: Product, price: float) -> None:
         self._add(product.id, product.canonical_title, product.category_id)
         self.prices[product.id] = price
+
+    def register_pending(self) -> None:
+        for product, price in self.pending:
+            self.add(product, price)
+        self.pending.clear()
 
     def get_or_create_category(self, db: Session, slug: str) -> Category:
         category = self.categories.get(slug)
@@ -117,6 +125,41 @@ class ProductIndex:
         return None
 
 
+def match_or_create_product(
+    db: Session,
+    *,
+    title: str,
+    price: float,
+    category_slug: str | None,
+    brand: str | None,
+    image_url: str | None,
+    index: ProductIndex,
+    flush: bool = True,
+) -> tuple[int | None, Product | None]:
+    """Return (id of the matching product, None) or (None, new product).
+
+    The matched product isn't loaded, saving a DB round trip per offer. With
+    flush=False the new product is only added to the session (inserted with
+    the rest of the batch) and indexed later via index.register_pending(), so
+    two offers in the same batch can't match each other.
+    """
+    category = index.get_or_create_category(db, category_slug) if category_slug else None
+    category_id = category.id if category else None
+
+    product_id = index.best_match(title, price, category_id)
+    if product_id is not None:
+        return product_id, None
+
+    product = Product(canonical_title=title, category_id=category_id, brand=brand, image_url=image_url)
+    db.add(product)
+    if flush:
+        db.flush()
+        index.add(product, price)
+    else:
+        index.pending.append((product, price))
+    return None, product
+
+
 def find_or_create_product(
     db: Session,
     *,
@@ -129,15 +172,7 @@ def find_or_create_product(
 ) -> Product:
     if index is None:
         index = ProductIndex(db)
-    category = index.get_or_create_category(db, category_slug) if category_slug else None
-    category_id = category.id if category else None
-
-    product_id = index.best_match(title, price, category_id)
-    if product_id is not None:
-        return db.get(Product, product_id)
-
-    product = Product(canonical_title=title, category_id=category_id, brand=brand, image_url=image_url)
-    db.add(product)
-    db.flush()
-    index.add(product, price)
-    return product
+    product_id, product = match_or_create_product(
+        db, title=title, price=price, category_slug=category_slug, brand=brand, image_url=image_url, index=index
+    )
+    return product or db.get(Product, product_id)
