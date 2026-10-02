@@ -3,7 +3,7 @@
 #
 # Budget: private repos get 2,000 free Actions minutes/month and a full sweep
 # takes ~50 min, so the schedule is limited to the Cyber Monday days
-# (Oct 4-8, UTC) every 3 hours: ~28 sweeps ≈ 1,400 min. Outside an event
+# (Oct 4-8, UTC) every 3 hours: ~28 sweeps = ~1,400 min. Outside an event
 # window the scraper no-ops in about a minute (see app/scraper/event_windows.py).
 # For the next event, update the dates below and KNOWN_EVENTS.
 #
