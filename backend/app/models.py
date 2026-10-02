@@ -2,6 +2,7 @@ from datetime import datetime, timezone
 
 from sqlalchemy import (
     JSON,
+    BigInteger,
     Boolean,
     DateTime,
     ForeignKey,
@@ -101,7 +102,8 @@ class Subscriber(Base):
 
     id: Mapped[int] = mapped_column(primary_key=True)
     name: Mapped[str] = mapped_column(String(80))
-    telegram_chat_id: Mapped[int | None] = mapped_column(unique=True, default=None)
+    # BigInteger: Telegram chat ids don't fit a 32-bit INTEGER (e.g. <chat_id>).
+    telegram_chat_id: Mapped[int | None] = mapped_column(BigInteger, unique=True, default=None)
     link_code: Mapped[str | None] = mapped_column(String(20), default=None)
     link_code_expires_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), default=None)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
