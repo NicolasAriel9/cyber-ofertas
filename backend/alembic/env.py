@@ -6,13 +6,13 @@ from sqlalchemy import pool
 from alembic import context
 
 from app.config import settings
-from app.db import Base
+from app.db import Base, normalize_database_url
 from app import models  # noqa: F401 -- registers all models on Base.metadata
 
 # this is the Alembic Config object, which provides
 # access to the values within the .ini file in use.
 config = context.config
-config.set_main_option("sqlalchemy.url", settings.database_url)
+config.set_main_option("sqlalchemy.url", normalize_database_url(settings.database_url).replace("%", "%%"))
 
 # Interpret the config file for Python logging.
 # This line sets up loggers basically.

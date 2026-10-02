@@ -112,7 +112,7 @@ function AuthShell({
 }
 
 function LoginForm({ onDone, error }: { onDone: () => void; error?: string }) {
-  const [apiBase, setApiBase] = useState("http://127.0.0.1:8000");
+  const [apiBase, setApiBase] = useState(process.env.NEXT_PUBLIC_API_BASE ?? "http://127.0.0.1:8000");
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
   const [submitting, setSubmitting] = useState(false);

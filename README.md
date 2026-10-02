@@ -63,37 +63,43 @@ Step 1 (the scraper) is done; the rest needs accounts only you can create.
    `SCRAPE_STORES` (e.g. `falabella,paris`), `SCRAPE_REQUEST_DELAY` (seconds
    between requests to the same host, default 1).
 
-2. **Push the code to GitHub.** The local git repo already exists with an
-   initial commit (done 2026-09-28). Just create an empty repo on GitHub and
-   push:
+2. **Push the code to a private GitHub repo.** Create an empty private repo
+   on github.com (no README/license), then:
    ```
    cd "C:\proyectos python\cyber_ofertas"
-   git remote add origin <your-new-github-repo-url>
+   git remote add origin https://github.com/<you>/cyber-ofertas.git
    git push -u origin master
    ```
-   (Local git identity was set repo-local, not global -- `git config
-   user.name`/`user.email` inside this repo only. Set a global one if you'd
-   rather not repeat this per-project.)
 
-3. **Create a free Neon Postgres project** (neon.tech, no credit card) and
-   copy its connection string -- you'll paste it as `DATABASE_URL` in step 5.
+3. **Create a free Neon Postgres project** (neon.tech, no card), region
+   **AWS US East 2 (Ohio)** to match the Render region. Copy the connection
+   string (`postgresql://...?sslmode=require`).
 
-4. **Create a Telegram bot** via [@BotFather](https://t.me/BotFather)
-   (`/newbot`) -- note the bot token and the `@username` it gives you.
+4. **Deploy on Render:** dashboard -> New -> Blueprint -> pick the repo.
+   `render.yaml` creates two free services: the API (`cyber-ofertas-api`)
+   and the static frontend. Fill in the prompted secrets: `DATABASE_URL`
+   (Neon), `BASIC_AUTH_USER` / `BASIC_AUTH_PASSWORD` (pick your own),
+   `TELEGRAM_BOT_TOKEN` / `TELEGRAM_BOT_USERNAME` (from `backend/.env`), and
+   for the frontend `NEXT_PUBLIC_API_BASE` -- leave it empty at first, and
+   once the API has its `https://...onrender.com` URL, set it and redeploy
+   the frontend.
 
-5. **Deploy on Render:** dashboard -> New -> Blueprint -> point it at the
-   GitHub repo. Render reads `render.yaml` and creates all three services
-   (API, scraper cron, static frontend). You'll be prompted for the
-   `sync: false` secrets: `DATABASE_URL` (from step 3), `BASIC_AUTH_USER` /
-   `BASIC_AUTH_PASSWORD` (pick your own), `TELEGRAM_BOT_TOKEN` /
-   `TELEGRAM_BOT_USERNAME` (from step 4).
+5. **Scheduled scraper on GitHub Actions** (Render cron has no free plan).
+   In the GitHub repo: Settings -> Secrets and variables -> Actions -> add
+   `DATABASE_URL`, `TELEGRAM_BOT_TOKEN`, `TELEGRAM_BOT_USERNAME`. The
+   workflow (`.github/workflows/scrape.yml`) runs every 3 h on Oct 4-8; run
+   it once by hand now (Actions -> Scrape offers -> Run workflow) to fill
+   the DB, or run the scraper locally with `DATABASE_URL` pointing at Neon,
+   which doesn't spend Actions minutes (2,000/month free on private repos).
 
-6. **Register the Telegram webhook** once the API service has a public URL:
+6. **Switch Telegram to the real webhook.** Stop the local poller
+   (`scripts/telegram_poll_dev.py`) first -- a bot can't poll and use a
+   webhook at the same time -- then:
    ```
    curl "https://api.telegram.org/bot<TELEGRAM_BOT_TOKEN>/setWebhook?url=<API_URL>/telegram/webhook"
    ```
+   The free API sleeps after 15 min idle; the first message after that
+   takes ~1 min to be answered while it wakes up.
 
-7. **Open the deployed frontend URL from a phone**, log in with the API URL
-   + the Basic Auth credentials from step 5, pick Nico or Paula, and check
-   that offers, favorites, the comparator, and a forced price-drop alert
-   (edit a price in the DB manually to test) all work end-to-end.
+7. **Open the frontend URL from your phone**, log in, pick Nico or Paula,
+   and check offers, favorites, the comparator and a Telegram question.

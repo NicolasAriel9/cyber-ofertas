@@ -2,18 +2,32 @@
 #
 # Usage (once the repo is pushed to GitHub): in the Render dashboard, "New +"
 # -> "Blueprint", point it at this repo. Render will read this file and
-# create all three services below in one go. You'll be prompted for every
+# create both services below in one go. You'll be prompted for every
 # `sync: false` value (secrets) during setup.
 #
 # Database: uses an external Neon Postgres instance (DATABASE_URL), not
 # Render's own managed Postgres -- Render's free Postgres tier expires after
-# 30 days, Neon's free tier doesn't.
+# 30 days, Neon's free tier doesn't. Pick the same region for both (Render
+# "ohio" + Neon "AWS US East 2 (Ohio)") to keep API -> DB latency low.
+#
+# The scheduled scraper is NOT here: Render cron has no free plan, so it runs
+# on GitHub Actions instead (.github/workflows/scrape.yml).
 
-envVarGroups:
-  - name: cyber-ofertas-shared
+services:
+  - name: cyber-ofertas-api
+    type: web
+    runtime: python
+    plan: free
+    region: ohio
+    rootDir: backend
+    buildCommand: pip install -r requirements.txt && alembic upgrade head
+    startCommand: uvicorn app.main:app --host 0.0.0.0 --port $PORT
+    healthCheckPath: /healthz
+    # Secrets live on the service itself: Render ignores `sync: false` inside
+    # environment groups, so it would never prompt for them there.
     envVars:
       - key: DATABASE_URL
-        sync: false # paste the Neon connection string here when prompted
+        sync: false # Neon connection string
       - key: BASIC_AUTH_USER
         sync: false
       - key: BASIC_AUTH_PASSWORD
@@ -24,28 +38,8 @@ envVarGroups:
         sync: false # bot's @username, without the @
       - key: DEFAULT_DROP_ALERT_THRESHOLD_PCT
         value: "5.0"
-
-services:
-  - name: cyber-ofertas-api
-    type: web
-    runtime: python
-    plan: free
-    rootDir: backend
-    buildCommand: pip install -r requirements.txt && alembic upgrade head
-    startCommand: uvicorn app.main:app --host 0.0.0.0 --port $PORT
-    envVarGroups:
-      - cyber-ofertas-shared
-
-  - name: cyber-ofertas-scraper
-    type: cron
-    runtime: python
-    plan: free
-    rootDir: backend
-    schedule: "*/20 * * * *" # every 20 min; no-ops outside an active Cyber window (see app/scraper/event_windows.py)
-    buildCommand: pip install -r requirements.txt
-    startCommand: python -m app.scraper.cyber_scraper
-    envVarGroups:
-      - cyber-ofertas-shared
+      - key: PYTHON_VERSION
+        value: "3.14.7"
 
   - name: cyber-ofertas-frontend
     type: web
@@ -53,3 +47,6 @@ services:
     rootDir: frontend
     buildCommand: npm install && npm run build
     staticPublishPath: ./out
+    envVars:
+      - key: NEXT_PUBLIC_API_BASE
+        sync: false # the API's public URL (https://cyber-ofertas-api-xxxx.onrender.com), baked in at build time
