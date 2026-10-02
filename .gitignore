@@ -3,3 +3,7 @@
 .DS_Store
 Thumbs.db
 dev.db.bak*
+
+# Local secrets for other environments (e.g. Neon connection string)
+.env.*
+!.env.example
