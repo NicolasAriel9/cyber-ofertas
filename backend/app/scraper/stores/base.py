@@ -39,6 +39,18 @@ class StoreScraper:
     # check that it is participating in the current event.
     cyber_brand_name: str
     departments: list[Department]
+    # Which scrape job runs this store (SCRAPE_STORES matches slugs and
+    # groups). The big retailers each get their own; the ~200 brand sites are
+    # batched per platform. Defaults to the slug.
+    group: str | None = None
+    # Stores with small pages (VTEX caps a page at 50 items) get proportionally
+    # more of them, so SCRAPE_MAX_PAGES means roughly the same number of
+    # products everywhere.
+    pages_per_step: int = 1
+
+    @property
+    def job_group(self) -> str:
+        return self.group or self.slug
 
     def fetch_page(self, client: PoliteClient, department: Department, page: int) -> tuple[list[ScrapedOffer], bool]:
         """Return (offers on this page, whether a next page exists). Pages start at 1."""

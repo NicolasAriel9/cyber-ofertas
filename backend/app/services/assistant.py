@@ -121,10 +121,16 @@ def parse_query(db: Session, text: str) -> dict:
         remaining = SORT_CHEAP_RE.sub(" ", remaining)
 
     store = None
-    for slug, name in db.query(Store.slug, Store.name).all():
-        if re.search(rf"\b{slug}\b", remaining) or name.lower() in remaining:
+    # Only the big retailers count as a store here: a brand's own store
+    # ("marca-sony") would otherwise hijack "ofertas sony" away from Sony
+    # products at every other store -- the brand match below covers it.
+    # Whole words only, since some store names are tiny ("iO" is in "precio").
+    retailers = db.query(Store.slug, Store.name).filter(Store.slug.not_like("marca-%")).all()
+    for slug, name in sorted(retailers, key=lambda r: len(r[1]), reverse=True):
+        pattern = rf"\b(?:{re.escape(slug)}|{re.escape(name.lower())})\b"
+        if re.search(pattern, remaining):
             store = slug
-            remaining = re.sub(rf"\b{slug}\b", " ", remaining).replace(name.lower(), " ")
+            remaining = re.sub(pattern, " ", remaining)
             break
 
     brand = None

@@ -1,0 +1,1269 @@
+[
+ {
+  "name": "Acer",
+  "host": "www.acerstore.cl",
+  "platform": "shopify",
+  "category_slug": "tecnologia"
+ },
+ {
+  "name": "Adagio Teas",
+  "host": "adagio.cl",
+  "platform": "shopify",
+  "category_slug": "alimentos-y-bebidas"
+ },
+ {
+  "name": "Alisha Perfumes",
+  "host": "alishaperfumes.cl",
+  "platform": "shopify",
+  "category_slug": "salud-y-belleza"
+ },
+ {
+  "name": "All Nutrition",
+  "host": "www.allnutrition.cl",
+  "platform": "shopify",
+  "category_slug": "salud-y-belleza"
+ },
+ {
+  "name": "American Eagle",
+  "host": "www.ae.cl",
+  "platform": "vtex",
+  "category_slug": "vestuario-y-calzado"
+ },
+ {
+  "name": "Amphora",
+  "host": "www.amphora.cl",
+  "platform": "shopify",
+  "category_slug": "accesorios-moda"
+ },
+ {
+  "name": "Andesland",
+  "host": "www.andeslandoutdoor.cl",
+  "platform": "shopify",
+  "category_slug": "deportes-y-outdoor"
+ },
+ {
+  "name": "Ansaldo Toys",
+  "host": "www.ansaldo.cl",
+  "platform": "shopify",
+  "category_slug": "infantil"
+ },
+ {
+  "name": "Apro",
+  "host": "www.apro.cl",
+  "platform": "shopify",
+  "category_slug": "vestuario-industrial"
+ },
+ {
+  "name": "Audiomusica",
+  "host": "www.audiomusica.com",
+  "platform": "vtex",
+  "category_slug": "musica-y-audio"
+ },
+ {
+  "name": "Azaleia",
+  "host": "www.azaleia.cl",
+  "platform": "shopify",
+  "category_slug": "vestuario-y-calzado"
+ },
+ {
+  "name": "Back Online",
+  "host": "backonline.cl",
+  "platform": "shopify",
+  "category_slug": "tecnologia"
+ },
+ {
+  "name": "Baepink",
+  "host": "baepink.cl",
+  "platform": "shopify",
+  "category_slug": "entretencion"
+ },
+ {
+  "name": "Bamers",
+  "host": "www.bamers.cl",
+  "platform": "shopify",
+  "category_slug": "vestuario-y-calzado"
+ },
+ {
+  "name": "BazarED",
+  "host": "www.bazared.cl",
+  "platform": "shopify",
+  "category_slug": "hogar"
+ },
+ {
+  "name": "Bazhars",
+  "host": "www.bazhars.cl",
+  "platform": "shopify",
+  "category_slug": "hogar"
+ },
+ {
+  "name": "Bbq Grill",
+  "host": "bbqgrill.cl",
+  "platform": "vtex",
+  "category_slug": "hogar"
+ },
+ {
+  "name": "Befoods",
+  "host": "www.befoods.cl",
+  "platform": "shopify",
+  "category_slug": "mascotas"
+ },
+ {
+  "name": "Belkin",
+  "host": "www.belkin.cl",
+  "platform": "shopify",
+  "category_slug": "tecnologia"
+ },
+ {
+  "name": "Bestmart",
+  "host": "bestmart.cl",
+  "platform": "shopify",
+  "category_slug": "tecnologia"
+ },
+ {
+  "name": "Bestway",
+  "host": "bestwaystore.cl",
+  "platform": "shopify",
+  "category_slug": "hogar"
+ },
+ {
+  "name": "Bix",
+  "host": "www.bix.cl",
+  "platform": "shopify",
+  "category_slug": "hogar"
+ },
+ {
+  "name": "Black Bubba",
+  "host": "blackbubba.com",
+  "platform": "shopify",
+  "category_slug": "equipaje-bolsos-y-maletas"
+ },
+ {
+  "name": "Blanik",
+  "host": "blanik.cl",
+  "platform": "vtex",
+  "category_slug": "hogar"
+ },
+ {
+  "name": "BLU Store",
+  "host": "www.blustore.cl",
+  "platform": "shopify",
+  "category_slug": "tecnologia"
+ },
+ {
+  "name": "Bosque Chileno",
+  "host": "bosquechileno.cl",
+  "platform": "shopify",
+  "category_slug": "educacion-y-cultura"
+ },
+ {
+  "name": "BossCamp",
+  "host": "bosscamp.cl",
+  "platform": "shopify",
+  "category_slug": "deportes-y-outdoor"
+ },
+ {
+  "name": "Boutique Yauras",
+  "host": "boutiqueyauras.cl",
+  "platform": "shopify",
+  "category_slug": "salud-y-belleza"
+ },
+ {
+  "name": "Bsoul",
+  "host": "www.bsoul.com",
+  "platform": "shopify",
+  "category_slug": "vestuario-y-calzado"
+ },
+ {
+  "name": "Calvin Klein",
+  "host": "www.calvinklein.cl",
+  "platform": "vtex",
+  "category_slug": "vestuario-y-calzado"
+ },
+ {
+  "name": "Calzado de Seguridad",
+  "host": "www.calzadodeseguridad.cl",
+  "platform": "shopify",
+  "category_slug": "vestuario-industrial"
+ },
+ {
+  "name": "Cardinale",
+  "host": "www.cardinale.cl",
+  "platform": "shopify",
+  "category_slug": "vestuario-y-calzado"
+ },
+ {
+  "name": "Casa Royal",
+  "host": "www.casaroyal.cl",
+  "platform": "vtex",
+  "category_slug": "tecnologia"
+ },
+ {
+  "name": "Cat",
+  "host": "www.shopcaterpillar.cl",
+  "platform": "shopify",
+  "category_slug": "vestuario-y-calzado"
+ },
+ {
+  "name": "Chef Lab",
+  "host": "cheflab.cl",
+  "platform": "shopify",
+  "category_slug": "hogar"
+ },
+ {
+  "name": "ClubSoftys",
+  "host": "www.clubsoftys.cl",
+  "platform": "vtex",
+  "category_slug": "multitiendas-y-supermercados"
+ },
+ {
+  "name": "Coleman",
+  "host": "www.coleman.cl",
+  "platform": "vtex",
+  "category_slug": "deportes-y-outdoor"
+ },
+ {
+  "name": "Columbia",
+  "host": "www.columbiachile.cl",
+  "platform": "shopify",
+  "category_slug": "deportes-y-outdoor"
+ },
+ {
+  "name": "Construplaza",
+  "host": "www.construplaza.cl",
+  "platform": "vtex",
+  "category_slug": "ferreteria-y-construccion"
+ },
+ {
+  "name": "Coreana",
+  "host": "coreanachile.cl",
+  "platform": "shopify",
+  "category_slug": "salud-y-belleza"
+ },
+ {
+  "name": "Cortinas Izurieta",
+  "host": "www.cortinasizurieta.cl",
+  "platform": "magento",
+  "category_slug": "hogar"
+ },
+ {
+  "name": "Cosmetic.cl",
+  "host": "cosmetic.cl",
+  "platform": "shopify",
+  "category_slug": "salud-y-belleza"
+ },
+ {
+  "name": "Crocs",
+  "host": "www.crocs.cl",
+  "platform": "shopify",
+  "category_slug": "vestuario-y-calzado"
+ },
+ {
+  "name": "De todo y mas",
+  "host": "detodoymas.cl",
+  "platform": "shopify",
+  "category_slug": "multitiendas-y-supermercados"
+ },
+ {
+  "name": "Deep Productivity & Performance",
+  "host": "holasomosdeep.com",
+  "platform": "shopify",
+  "category_slug": "alimentos-y-bebidas"
+ },
+ {
+  "name": "Delsey",
+  "host": "delsey.cl",
+  "platform": "shopify",
+  "category_slug": "equipaje-bolsos-y-maletas"
+ },
+ {
+  "name": "Dermotienda",
+  "host": "dermotienda.cl",
+  "platform": "shopify",
+  "category_slug": "salud-y-belleza"
+ },
+ {
+  "name": "Dib",
+  "host": "www.dib.cl",
+  "platform": "shopify",
+  "category_slug": "hogar"
+ },
+ {
+  "name": "Dimacofi",
+  "host": "dimacofitienda.cl",
+  "platform": "shopify",
+  "category_slug": "tecnologia"
+ },
+ {
+  "name": "Dimarine",
+  "host": "www.dimarine.cl",
+  "platform": "vtex",
+  "category_slug": "deportes-y-outdoor"
+ },
+ {
+  "name": "Dimarsa",
+  "host": "www.dimarsa.cl",
+  "platform": "vtex",
+  "category_slug": "multitiendas-y-supermercados"
+ },
+ {
+  "name": "Discovery",
+  "host": "discoverystore.cl",
+  "platform": "shopify",
+  "category_slug": "deportes-y-outdoor"
+ },
+ {
+  "name": "Dockers",
+  "host": "www.dockers.cl",
+  "platform": "shopify",
+  "category_slug": "vestuario-y-calzado"
+ },
+ {
+  "name": "Dolly",
+  "host": "www.dolly.cl",
+  "platform": "vtex",
+  "category_slug": "vestuario-y-calzado"
+ },
+ {
+  "name": "Domotiz",
+  "host": "www.domotiz.cl",
+  "platform": "shopify",
+  "category_slug": "tecnologia"
+ },
+ {
+  "name": "DONDE NACEN LAS VELAS",
+  "host": "fabricadevelas.cl",
+  "platform": "shopify",
+  "category_slug": "hogar"
+ },
+ {
+  "name": "Ebest",
+  "host": "www.ebest.cl",
+  "platform": "magento",
+  "category_slug": "tecnologia"
+ },
+ {
+  "name": "Edelbrock",
+  "host": "www.edelbrock.cl",
+  "platform": "shopify",
+  "category_slug": "vestuario-industrial"
+ },
+ {
+  "name": "Electrolux",
+  "host": "www.electrolux.cl",
+  "platform": "vtex",
+  "category_slug": "hogar"
+ },
+ {
+  "name": "Elite Perfumes",
+  "host": "www.eliteperfumes.cl",
+  "platform": "shopify",
+  "category_slug": "salud-y-belleza"
+ },
+ {
+  "name": "Elite Professional",
+  "host": "www.eliteprofessional.cl",
+  "platform": "vtex",
+  "category_slug": "multitiendas-y-supermercados"
+ },
+ {
+  "name": "Ellus",
+  "host": "ellus.cl",
+  "platform": "vtex",
+  "category_slug": "vestuario-y-calzado"
+ },
+ {
+  "name": "ExtraVirgen.Store",
+  "host": "www.extravirgen.store",
+  "platform": "shopify",
+  "category_slug": "alimentos-y-bebidas"
+ },
+ {
+  "name": "Fashion's Park",
+  "host": "www.fashionspark.com",
+  "platform": "shopify",
+  "category_slug": "vestuario-y-calzado"
+ },
+ {
+  "name": "Ferouch",
+  "host": "www.ferouch.cl",
+  "platform": "vtex",
+  "category_slug": "vestuario-y-calzado"
+ },
+ {
+  "name": "Ferreteria Marsella",
+  "host": "www.ferreteriamarsella.cl",
+  "platform": "vtex",
+  "category_slug": "ferreteria-y-construccion"
+ },
+ {
+  "name": "Flex",
+  "host": "www.flex.cl",
+  "platform": "magento",
+  "category_slug": "hogar"
+ },
+ {
+  "name": "Flores",
+  "host": "www.tiendaflores.cl",
+  "platform": "magento",
+  "category_slug": "ropa-interior-y-pijamas"
+ },
+ {
+  "name": "Florsheim",
+  "host": "www.florsheim.cl",
+  "platform": "vtex",
+  "category_slug": "vestuario-y-calzado"
+ },
+ {
+  "name": "Form Design",
+  "host": "form.cl",
+  "platform": "shopify",
+  "category_slug": "hogar"
+ },
+ {
+  "name": "Full Sublimacion",
+  "host": "fullsublimacion.cl",
+  "platform": "shopify",
+  "category_slug": "entretencion"
+ },
+ {
+  "name": "Garmin",
+  "host": "www.garminstore.cl",
+  "platform": "shopify",
+  "category_slug": "tecnologia"
+ },
+ {
+  "name": "Getway",
+  "host": "www.getway.cl",
+  "platform": "shopify",
+  "category_slug": "deportes-y-outdoor"
+ },
+ {
+  "name": "Giant Bicycles",
+  "host": "www.giant-bicycles.cl",
+  "platform": "shopify",
+  "category_slug": "deportes-y-outdoor"
+ },
+ {
+  "name": "GÜTEN BREW",
+  "host": "www.gutenbrew.cl",
+  "platform": "shopify",
+  "category_slug": "hogar"
+ },
+ {
+  "name": "H&M",
+  "host": "cl.hm.com",
+  "platform": "vtex",
+  "category_slug": "vestuario-y-calzado"
+ },
+ {
+  "name": "Hakahonu",
+  "host": "www.hakahonu.cl",
+  "platform": "shopify",
+  "category_slug": "deportes-y-outdoor"
+ },
+ {
+  "name": "Hardwork",
+  "host": "hardwork.cl",
+  "platform": "shopify",
+  "category_slug": "vestuario-y-calzado"
+ },
+ {
+  "name": "Head",
+  "host": "www.headchile.com",
+  "platform": "magento",
+  "category_slug": "equipaje-bolsos-y-maletas"
+ },
+ {
+  "name": "Hitway Music",
+  "host": "www.hitwaymusic.cl",
+  "platform": "shopify",
+  "category_slug": "musica-y-audio"
+ },
+ {
+  "name": "Ho Nutrition",
+  "host": "honutrition.cl",
+  "platform": "shopify",
+  "category_slug": "salud-y-belleza"
+ },
+ {
+  "name": "HomeMobili",
+  "host": "homemobili.cl",
+  "platform": "shopify",
+  "category_slug": "muebles"
+ },
+ {
+  "name": "Humana",
+  "host": "www.humanastore.cl",
+  "platform": "shopify",
+  "category_slug": "accesorios-moda"
+ },
+ {
+  "name": "Hush Puppies",
+  "host": "www.hushpuppies.cl",
+  "platform": "shopify",
+  "category_slug": "vestuario-y-calzado"
+ },
+ {
+  "name": "Imahe",
+  "host": "www.imahe.cl",
+  "platform": "shopify",
+  "category_slug": "hogar"
+ },
+ {
+  "name": "INFANTI",
+  "host": "infanti.cl",
+  "platform": "shopify",
+  "category_slug": "infantil"
+ },
+ {
+  "name": "Ironside",
+  "host": "www.ironside.cl",
+  "platform": "shopify",
+  "category_slug": "deportes-y-outdoor"
+ },
+ {
+  "name": "Jansport",
+  "host": "www.jansport.cl",
+  "platform": "vtex",
+  "category_slug": "equipaje-bolsos-y-maletas"
+ },
+ {
+  "name": "Kallfu",
+  "host": "www.kallfu.cl",
+  "platform": "shopify",
+  "category_slug": "muebles"
+ },
+ {
+  "name": "Kano",
+  "host": "kanochile.cl",
+  "platform": "shopify",
+  "category_slug": "deportes-y-outdoor"
+ },
+ {
+  "name": "Kayser",
+  "host": "kaysershop.com",
+  "platform": "shopify",
+  "category_slug": "ropa-interior-y-pijamas"
+ },
+ {
+  "name": "Kendal",
+  "host": "kendalchile.cl",
+  "platform": "shopify",
+  "category_slug": "hogar"
+ },
+ {
+  "name": "Keter",
+  "host": "keter.cl",
+  "platform": "shopify",
+  "category_slug": "muebles"
+ },
+ {
+  "name": "Kitchen House",
+  "host": "kitchenhouse.cl",
+  "platform": "shopify",
+  "category_slug": "hogar"
+ },
+ {
+  "name": "Kliki",
+  "host": "kliki.cl",
+  "platform": "shopify",
+  "category_slug": "salud-y-belleza"
+ },
+ {
+  "name": "Kärcher",
+  "host": "www.karcherstore.cl",
+  "platform": "vtex",
+  "category_slug": "hogar"
+ },
+ {
+  "name": "L'bel",
+  "host": "lbel.tiendabelcorp.cl",
+  "platform": "vtex",
+  "category_slug": "salud-y-belleza"
+ },
+ {
+  "name": "La Relojeria",
+  "host": "larelojeria.cl",
+  "platform": "shopify",
+  "category_slug": "accesorios-moda"
+ },
+ {
+  "name": "La Vinoteca",
+  "host": "www.lavinoteca.cl",
+  "platform": "vtex",
+  "category_slug": "alimentos-y-bebidas"
+ },
+ {
+  "name": "LANCO PAINTS",
+  "host": "tienda.lancochile.com",
+  "platform": "shopify",
+  "category_slug": "hogar"
+ },
+ {
+  "name": "Leche Pal Pelo",
+  "host": "lechepalpelo.cl",
+  "platform": "shopify",
+  "category_slug": "salud-y-belleza"
+ },
+ {
+  "name": "Lego",
+  "host": "www.tiendalego.cl",
+  "platform": "shopify",
+  "category_slug": "infantil"
+ },
+ {
+  "name": "Lenceria.cl",
+  "host": "lenceria.cl",
+  "platform": "shopify",
+  "category_slug": "ropa-interior-y-pijamas"
+ },
+ {
+  "name": "Levi's",
+  "host": "www.levi.cl",
+  "platform": "vtex",
+  "category_slug": "vestuario-y-calzado"
+ },
+ {
+  "name": "Libreria Contrapunto",
+  "host": "contrapunto.cl",
+  "platform": "shopify",
+  "category_slug": "educacion-y-cultura"
+ },
+ {
+  "name": "Lineatre",
+  "host": "www.lineatre.cl",
+  "platform": "shopify",
+  "category_slug": "vestuario-y-calzado"
+ },
+ {
+  "name": "Lippi",
+  "host": "www.lippioutdoor.com",
+  "platform": "shopify",
+  "category_slug": "deportes-y-outdoor"
+ },
+ {
+  "name": "Lodoro Perfumes",
+  "host": "www.lodoro.cl",
+  "platform": "shopify",
+  "category_slug": "salud-y-belleza"
+ },
+ {
+  "name": "Ludovica",
+  "host": "ludovica.cl",
+  "platform": "shopify",
+  "category_slug": "vestuario-y-calzado"
+ },
+ {
+  "name": "Mademsa",
+  "host": "www.tiendamademsa.cl",
+  "platform": "vtex",
+  "category_slug": "hogar"
+ },
+ {
+  "name": "Maison Niche",
+  "host": "maisonniche.cl",
+  "platform": "shopify",
+  "category_slug": "salud-y-belleza"
+ },
+ {
+  "name": "Mamas Mateas",
+  "host": "mamasmateas.com",
+  "platform": "shopify",
+  "category_slug": "infantil"
+ },
+ {
+  "name": "Marley Coffee",
+  "host": "www.marleycoffee.cl",
+  "platform": "vtex",
+  "category_slug": "alimentos-y-bebidas"
+ },
+ {
+  "name": "Maui and Sons",
+  "host": "mauiandsons.cl",
+  "platform": "magento",
+  "category_slug": "vestuario-y-calzado"
+ },
+ {
+  "name": "Merrell",
+  "host": "www.merrell.cl",
+  "platform": "shopify",
+  "category_slug": "deportes-y-outdoor"
+ },
+ {
+  "name": "Mi primera Foto",
+  "host": "www.miprimerafoto.cl",
+  "platform": "shopify",
+  "category_slug": "infantil"
+ },
+ {
+  "name": "Mi tienda Cotidian",
+  "host": "www.mitiendacotidian.cl",
+  "platform": "vtex",
+  "category_slug": "salud-y-belleza"
+ },
+ {
+  "name": "Milu",
+  "host": "milurugs.com",
+  "platform": "shopify",
+  "category_slug": "hogar"
+ },
+ {
+  "name": "Mimbral",
+  "host": "www.mimbral.cl",
+  "platform": "vtex",
+  "category_slug": "ferreteria-y-construccion"
+ },
+ {
+  "name": "Mis Joyas",
+  "host": "misjoyas.cl",
+  "platform": "shopify",
+  "category_slug": "accesorios-moda"
+ },
+ {
+  "name": "Mormaii",
+  "host": "www.mormaii.cl",
+  "platform": "vtex",
+  "category_slug": "deportes-y-outdoor"
+ },
+ {
+  "name": "Motorola",
+  "host": "www.motorola.cl",
+  "platform": "vtex",
+  "category_slug": "tecnologia"
+ },
+ {
+  "name": "Multimarcas Perfumes",
+  "host": "www.multimarcasperfumes.cl",
+  "platform": "shopify",
+  "category_slug": "salud-y-belleza"
+ },
+ {
+  "name": "Mundo Aromas",
+  "host": "www.mundoaromas.cl",
+  "platform": "shopify",
+  "category_slug": "salud-y-belleza"
+ },
+ {
+  "name": "Mundotransfer",
+  "host": "www.mundotransfer.cl",
+  "platform": "magento",
+  "category_slug": "tecnologia"
+ },
+ {
+  "name": "New Balance",
+  "host": "newbalance.cl",
+  "platform": "magento",
+  "category_slug": "vestuario-y-calzado",
+  "store_code": "newbalance"
+ },
+ {
+  "name": "New Man",
+  "host": "www.newman.cl",
+  "platform": "vtex",
+  "category_slug": "vestuario-y-calzado"
+ },
+ {
+  "name": "Nooki",
+  "host": "www.nooki.cl",
+  "platform": "shopify",
+  "category_slug": "salud-y-belleza"
+ },
+ {
+  "name": "Nutriscomarket.cl",
+  "host": "www.nutriscomarket.cl",
+  "platform": "shopify",
+  "category_slug": "alimentos-y-bebidas"
+ },
+ {
+  "name": "O'neill",
+  "host": "www.oneill.cl",
+  "platform": "vtex",
+  "category_slug": "vestuario-y-calzado"
+ },
+ {
+  "name": "Oster",
+  "host": "www.oster.cl",
+  "platform": "vtex",
+  "category_slug": "hogar"
+ },
+ {
+  "name": "Outlet del cafe",
+  "host": "www.outletdelcafe.cl",
+  "platform": "shopify",
+  "category_slug": "alimentos-y-bebidas"
+ },
+ {
+  "name": "Parfumerie d'Aquitaine",
+  "host": "parfumeriedaquitaine.cl",
+  "platform": "shopify",
+  "category_slug": "salud-y-belleza"
+ },
+ {
+  "name": "Patio Ferretero",
+  "host": "www.patioferretero.cl",
+  "platform": "shopify",
+  "category_slug": "ferreteria-y-construccion"
+ },
+ {
+  "name": "Penguin",
+  "host": "www.originalpenguin.cl",
+  "platform": "vtex",
+  "category_slug": "vestuario-y-calzado"
+ },
+ {
+  "name": "Perry Ellis",
+  "host": "www.perryellis.cl",
+  "platform": "vtex",
+  "category_slug": "vestuario-y-calzado"
+ },
+ {
+  "name": "Petvet",
+  "host": "petvet.cl",
+  "platform": "shopify",
+  "category_slug": "mascotas"
+ },
+ {
+  "name": "Pichintun",
+  "host": "www.pichintun.com",
+  "platform": "shopify",
+  "category_slug": "infantil"
+ },
+ {
+  "name": "PILGRIM TRAVEL STORE",
+  "host": "pilgrim.cl",
+  "platform": "shopify",
+  "category_slug": "equipaje-bolsos-y-maletas"
+ },
+ {
+  "name": "Piwen",
+  "host": "www.piwen.cl",
+  "platform": "shopify",
+  "category_slug": "alimentos-y-bebidas"
+ },
+ {
+  "name": "Polyphonik",
+  "host": "polyphonik.cl",
+  "platform": "shopify",
+  "category_slug": "musica-y-audio"
+ },
+ {
+  "name": "Privilege",
+  "host": "www.privilege.cl",
+  "platform": "vtex",
+  "category_slug": "vestuario-y-calzado"
+ },
+ {
+  "name": "Productos de Lujo",
+  "host": "productosdelujo.cl",
+  "platform": "shopify",
+  "category_slug": "salud-y-belleza"
+ },
+ {
+  "name": "Promusic",
+  "host": "www.promusic.cl",
+  "platform": "shopify",
+  "category_slug": "musica-y-audio"
+ },
+ {
+  "name": "Puppies & Kittens",
+  "host": "pyk.cl",
+  "platform": "shopify",
+  "category_slug": "mascotas"
+ },
+ {
+  "name": "Quebec",
+  "host": "www.quebecwork.cl",
+  "platform": "shopify",
+  "category_slug": "vestuario-y-calzado"
+ },
+ {
+  "name": "RCR Ferreteria",
+  "host": "www.rcrferreteria.cl",
+  "platform": "shopify",
+  "category_slug": "ferreteria-y-construccion"
+ },
+ {
+  "name": "Reebok",
+  "host": "www.reebok.cl",
+  "platform": "vtex",
+  "category_slug": "vestuario-y-calzado"
+ },
+ {
+  "name": "Relan",
+  "host": "www.relan.cl",
+  "platform": "shopify",
+  "category_slug": "muebles"
+ },
+ {
+  "name": "Renatta & Go",
+  "host": "renattandgo.cl",
+  "platform": "shopify",
+  "category_slug": "vestuario-y-calzado"
+ },
+ {
+  "name": "Repuestos Boston",
+  "host": "www.repuestosboston.cl",
+  "platform": "magento",
+  "category_slug": "neumaticos-y-accesorios"
+ },
+ {
+  "name": "Retail.cl",
+  "host": "www.retail.cl",
+  "platform": "shopify",
+  "category_slug": "multitiendas-y-supermercados"
+ },
+ {
+  "name": "Reuse",
+  "host": "www.reuse.cl",
+  "platform": "shopify",
+  "category_slug": "tecnologia"
+ },
+ {
+  "name": "Rincon Himalaya",
+  "host": "www.rinconhimalaya.cl",
+  "platform": "shopify",
+  "category_slug": "hogar"
+ },
+ {
+  "name": "Rockford",
+  "host": "www.rkflife.com",
+  "platform": "shopify",
+  "category_slug": "vestuario-y-calzado"
+ },
+ {
+  "name": "Roly",
+  "host": "www.roly.cl",
+  "platform": "magento",
+  "category_slug": "vestuario-y-calzado"
+ },
+ {
+  "name": "RSG INDUSTRIAL",
+  "host": "www.rsg.cl",
+  "platform": "shopify",
+  "category_slug": "ferreteria-y-construccion"
+ },
+ {
+  "name": "Ruta Diferente",
+  "host": "www.rutadiferente.cl",
+  "platform": "shopify",
+  "category_slug": "neumaticos-y-accesorios"
+ },
+ {
+  "name": "Safety Store",
+  "host": "www.safetystore.cl",
+  "platform": "shopify",
+  "category_slug": "vestuario-industrial"
+ },
+ {
+  "name": "Saideep",
+  "host": "www.saideep.cl",
+  "platform": "shopify",
+  "category_slug": "salud-y-belleza"
+ },
+ {
+  "name": "SALMON MARKETPLACE",
+  "host": "salmonmarketplace.cl",
+  "platform": "shopify",
+  "category_slug": "alimentos-y-bebidas"
+ },
+ {
+  "name": "Sharkninja",
+  "host": "www.sharkninja.cl",
+  "platform": "shopify",
+  "category_slug": "hogar"
+ },
+ {
+  "name": "Singolare",
+  "host": "www.singolare.cl",
+  "platform": "shopify",
+  "category_slug": "vestuario-y-calzado"
+ },
+ {
+  "name": "SlimeHuum",
+  "host": "tiendita.slimehuum.cl",
+  "platform": "shopify",
+  "category_slug": "infantil"
+ },
+ {
+  "name": "So Long!",
+  "host": "www.solong.cl",
+  "platform": "shopify",
+  "category_slug": "accesorios-moda"
+ },
+ {
+  "name": "Sokobox",
+  "host": "www.sokobox.cl",
+  "platform": "shopify",
+  "category_slug": "salud-y-belleza"
+ },
+ {
+  "name": "Sony",
+  "host": "store.sony.cl",
+  "platform": "vtex",
+  "category_slug": "tecnologia"
+ },
+ {
+  "name": "Sparta",
+  "host": "sparta.cl",
+  "platform": "magento",
+  "category_slug": "deportes-y-outdoor"
+ },
+ {
+  "name": "Spazzio Design",
+  "host": "spazziodesign.cl",
+  "platform": "shopify",
+  "category_slug": "muebles"
+ },
+ {
+  "name": "Sporting Brands",
+  "host": "sportingbrands.cl",
+  "platform": "shopify",
+  "category_slug": "deportes-y-outdoor"
+ },
+ {
+  "name": "Supermercado del Neumatico",
+  "host": "www.sdn.cl",
+  "platform": "magento",
+  "category_slug": "neumaticos-y-accesorios"
+ },
+ {
+  "name": "SuperStore",
+  "host": "superstore.cl",
+  "platform": "shopify",
+  "category_slug": "multitiendas-y-supermercados"
+ },
+ {
+  "name": "Swarovski",
+  "host": "www.swarovski.cl",
+  "platform": "vtex",
+  "category_slug": "accesorios-moda"
+ },
+ {
+  "name": "Tehtools",
+  "host": "www.tehtools.cl",
+  "platform": "shopify",
+  "category_slug": "ferreteria-y-construccion"
+ },
+ {
+  "name": "The Beauty Box",
+  "host": "www.thebeautybox.cl",
+  "platform": "shopify",
+  "category_slug": "salud-y-belleza"
+ },
+ {
+  "name": "The Line",
+  "host": "theline.cl",
+  "platform": "vtex",
+  "category_slug": "vestuario-y-calzado"
+ },
+ {
+  "name": "TheLabstore",
+  "host": "thelabstore.cl",
+  "platform": "shopify",
+  "category_slug": "vestuario-y-calzado"
+ },
+ {
+  "name": "Thorben Store",
+  "host": "thorbenstore.cl",
+  "platform": "shopify",
+  "category_slug": "hogar"
+ },
+ {
+  "name": "Tienda Copec",
+  "host": "www.tiendacopec.cl",
+  "platform": "shopify",
+  "category_slug": "multitiendas-y-supermercados"
+ },
+ {
+  "name": "Tienda Salfa",
+  "host": "www.tiendasalfa.cl",
+  "platform": "vtex",
+  "category_slug": "neumaticos-y-accesorios"
+ },
+ {
+  "name": "Tommy Hilfiger",
+  "host": "cl.tommy.com",
+  "platform": "vtex",
+  "category_slug": "vestuario-y-calzado"
+ },
+ {
+  "name": "TOTALTOOLS",
+  "host": "herramientastotal.cl",
+  "platform": "shopify",
+  "category_slug": "ferreteria-y-construccion"
+ },
+ {
+  "name": "TOTTO",
+  "host": "cl.totto.com",
+  "platform": "vtex",
+  "category_slug": "accesorios-moda"
+ },
+ {
+  "name": "Toyng",
+  "host": "toyng.cl",
+  "platform": "shopify",
+  "category_slug": "infantil"
+ },
+ {
+  "name": "Trail Store",
+  "host": "trailstore.cl",
+  "platform": "shopify",
+  "category_slug": "deportes-y-outdoor"
+ },
+ {
+  "name": "Tramontina",
+  "host": "www.tramontina.cl",
+  "platform": "vtex",
+  "category_slug": "hogar"
+ },
+ {
+  "name": "Treck",
+  "host": "www.treck.cl",
+  "platform": "vtex",
+  "category_slug": "vestuario-industrial"
+ },
+ {
+  "name": "Trial",
+  "host": "www.trial.cl",
+  "platform": "vtex",
+  "category_slug": "vestuario-y-calzado"
+ },
+ {
+  "name": "Umbrale",
+  "host": "www.umbrale.cl",
+  "platform": "vtex",
+  "category_slug": "vestuario-y-calzado"
+ },
+ {
+  "name": "Under Armour",
+  "host": "www.underarmour.cl",
+  "platform": "shopify",
+  "category_slug": "deportes-y-outdoor"
+ },
+ {
+  "name": "VADELL",
+  "host": "vadell.cl",
+  "platform": "shopify",
+  "category_slug": "entretencion"
+ },
+ {
+  "name": "Vadell Home",
+  "host": "vadellhome.cl",
+  "platform": "shopify",
+  "category_slug": "hogar"
+ },
+ {
+  "name": "van Beek",
+  "host": "vanbeek.cl",
+  "platform": "shopify",
+  "category_slug": "ferreteria-y-construccion"
+ },
+ {
+  "name": "Vans",
+  "host": "www.vans.cl",
+  "platform": "shopify",
+  "category_slug": "vestuario-y-calzado"
+ },
+ {
+  "name": "Vekka Home",
+  "host": "vekkahome.com",
+  "platform": "shopify",
+  "category_slug": "muebles"
+ },
+ {
+  "name": "Velez",
+  "host": "www.velez.cl",
+  "platform": "vtex",
+  "category_slug": "vestuario-y-calzado"
+ },
+ {
+  "name": "Ventus",
+  "host": "ventuscorp.cl",
+  "platform": "vtex",
+  "category_slug": "hogar"
+ },
+ {
+  "name": "Vesperstore",
+  "host": "vesperstore.cl",
+  "platform": "shopify",
+  "category_slug": "salud-y-belleza"
+ },
+ {
+  "name": "Vitepal",
+  "host": "www.vitepal.cl",
+  "platform": "magento",
+  "category_slug": "neumaticos-y-accesorios"
+ },
+ {
+  "name": "Volkanica",
+  "host": "www.volkanica.cl",
+  "platform": "shopify",
+  "category_slug": "deportes-y-outdoor"
+ },
+ {
+  "name": "Vulcano",
+  "host": "vulcanorunning.com",
+  "platform": "shopify",
+  "category_slug": "deportes-y-outdoor"
+ },
+ {
+  "name": "Wados",
+  "host": "www.wa2.cl",
+  "platform": "magento",
+  "category_slug": "vestuario-y-calzado"
+ },
+ {
+  "name": "Wayu",
+  "host": "www.wayu.cl",
+  "platform": "shopify",
+  "category_slug": "muebles"
+ },
+ {
+  "name": "Women'Secret",
+  "host": "www.womensecret.cl",
+  "platform": "vtex",
+  "category_slug": "vestuario-y-calzado"
+ },
+ {
+  "name": "Worbee",
+  "host": "worbee.cl",
+  "platform": "shopify",
+  "category_slug": "tecnologia"
+ },
+ {
+  "name": "Yauras",
+  "host": "yauras.cl",
+  "platform": "shopify",
+  "category_slug": "salud-y-belleza"
+ },
+ {
+  "name": "Yonex",
+  "host": "yonex.cl",
+  "platform": "shopify",
+  "category_slug": "deportes-y-outdoor"
+ },
+ {
+  "name": "Zagg",
+  "host": "zagg.cl",
+  "platform": "shopify",
+  "category_slug": "tecnologia"
+ },
+ {
+  "name": "Zapatos",
+  "host": "www.zapatos.cl",
+  "platform": "vtex",
+  "category_slug": "vestuario-y-calzado"
+ },
+ {
+  "name": "Zoy Home",
+  "host": "zoyhome.cl",
+  "platform": "shopify",
+  "category_slug": "muebles"
+ },
+ {
+  "name": "ÉSIKA",
+  "host": "esika.tiendabelcorp.cl",
+  "platform": "vtex",
+  "category_slug": "salud-y-belleza"
+ }
+]

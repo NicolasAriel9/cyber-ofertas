@@ -15,6 +15,12 @@ export default function ListingsPage() {
 
   const categoriesQuery = useQuery({ queryKey: ["categories"], queryFn: api.listCategories });
   const storesQuery = useQuery({ queryKey: ["stores"], queryFn: api.listStores });
+  // Brand-owned stores (slug "marca-...") are listed after the big retailers.
+  const allStores = storesQuery.data ?? [];
+  const storeGroups: [string, typeof allStores][] = [
+    ["Multitiendas", allStores.filter((s) => !s.slug.startsWith("marca-"))],
+    ["Marcas", allStores.filter((s) => s.slug.startsWith("marca-"))],
+  ];
   const listingsQuery = useInfiniteQuery({
     queryKey: ["listings", filters],
     queryFn: ({ pageParam }) => api.listListings({ ...filters, page: pageParam }),
@@ -73,11 +79,17 @@ export default function ListingsPage() {
           onChange={(e) => setFilters((f) => ({ ...f, store: e.target.value || undefined }))}
         >
           <option value="">Todas las tiendas</option>
-          {storesQuery.data?.map((s) => (
-            <option key={s.id} value={s.slug}>
-              {s.name}
-            </option>
-          ))}
+          {storeGroups.map(([label, stores]) =>
+            stores.length ? (
+              <optgroup key={label} label={label}>
+                {stores.map((s) => (
+                  <option key={s.id} value={s.slug}>
+                    {s.name}
+                  </option>
+                ))}
+              </optgroup>
+            ) : null,
+          )}
         </Select>
 
         <Select

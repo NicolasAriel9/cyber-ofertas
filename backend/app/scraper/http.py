@@ -42,25 +42,31 @@ class PoliteClient:
             time.sleep(self.delay - elapsed)
         self._last_request_at[host] = time.monotonic()
 
-    def get(self, url: str, params: dict | None = None) -> httpx.Response:
+    def request(self, method: str, url: str, **kwargs) -> httpx.Response:
         for attempt in range(1, MAX_RETRIES + 1):
             self._wait_for_host(url)
             try:
-                response = self._client.get(url, params=params)
+                response = self._client.request(method, url, **kwargs)
             except httpx.TransportError as exc:
                 if attempt == MAX_RETRIES:
                     raise
-                logger.warning("GET %s failed (%s), retry %d/%d", url, exc, attempt, MAX_RETRIES)
+                logger.warning("%s %s failed (%s), retry %d/%d", method, url, exc, attempt, MAX_RETRIES)
             else:
                 if response.status_code not in RETRY_STATUSES or attempt == MAX_RETRIES:
                     response.raise_for_status()
                     return response
-                logger.warning("GET %s -> %d, retry %d/%d", url, response.status_code, attempt, MAX_RETRIES)
+                logger.warning("%s %s -> %d, retry %d/%d", method, url, response.status_code, attempt, MAX_RETRIES)
             time.sleep(2**attempt)
         raise RuntimeError("unreachable")
 
-    def get_json(self, url: str, params: dict | None = None):
-        return self.get(url, params=params).json()
+    def get(self, url: str, params: dict | None = None, headers: dict | None = None) -> httpx.Response:
+        return self.request("GET", url, params=params, headers=headers)
+
+    def post_json(self, url: str, payload: dict, headers: dict | None = None):
+        return self.request("POST", url, json=payload, headers=headers).json()
+
+    def get_json(self, url: str, params: dict | None = None, headers: dict | None = None):
+        return self.get(url, params=params, headers=headers).json()
 
     def close(self) -> None:
         self._client.close()
