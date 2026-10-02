@@ -24,10 +24,11 @@ import os
 import time
 from datetime import datetime, timezone
 
-from sqlalchemy.orm import Session
+from sqlalchemy import select
+from sqlalchemy.orm import Session, selectinload
 
 from app.db import SessionLocal
-from app.models import Listing, PriceSnapshot, Store
+from app.models import Favorite, Listing, PriceSnapshot, Store
 from app.scraper import cyber_cl
 from app.scraper.event_windows import is_scrape_window_active
 from app.scraper.http import PoliteClient
@@ -35,7 +36,7 @@ from app.scraper.parser import ScrapedOffer
 from app.scraper.stores import ALL_STORES, StoreScraper
 from app.scraper.stores.base import MAX_PAGES_PER_DEPARTMENT
 from app.services.alerts import check_price_drop, record_alert_sent
-from app.services.matcher import ProductIndex, find_or_create_product
+from app.services.matcher import ProductIndex, match_or_create_product
 from app.services.telegram_client import format_price_drop_message, send_message
 
 logger = logging.getLogger(__name__)
@@ -60,21 +61,41 @@ def get_or_create_store(db: Session, slug: str, name: str) -> Store:
     return store
 
 
+_LOOKUP = object()  # sentinel: upsert_offer looks the listing up itself
+
+
 def upsert_offer(
-    db: Session, offer: ScrapedOffer, category_slug: str, index: ProductIndex | None = None
+    db: Session,
+    offer: ScrapedOffer,
+    category_slug: str,
+    index: ProductIndex | None = None,
+    *,
+    store: Store | None = None,
+    listing: Listing | None = _LOOKUP,  # type: ignore[assignment]
+    flush: bool = True,
 ) -> tuple[Listing, PriceSnapshot | None]:
     """Returns the new snapshot, or None when the price didn't change: history
     is only recorded on changes, so re-scraping 40k+ offers every cycle doesn't
-    grow the DB (Neon's free tier blocks writes past 1 GB)."""
-    store = get_or_create_store(db, offer.store_slug, offer.store_name)
+    grow the DB (Neon's free tier blocks writes past 1 GB).
 
-    listing = (
-        db.query(Listing)
-        .filter(Listing.store_id == store.id, Listing.external_id == offer.external_id)
-        .first()
-    )
+    The scrape loop passes the store, the pre-fetched listing (None if new) and
+    flush=False, so each offer costs no DB round trip of its own: the remote
+    Postgres is ~50 ms away from the GitHub runners, and per-offer queries
+    made a 10k-offer pass take over an hour. Everything is written when the
+    caller flushes the page.
+    """
+    if index is None:
+        index = ProductIndex(db)
+    if store is None:
+        store = get_or_create_store(db, offer.store_slug, offer.store_name)
+    if listing is _LOOKUP:
+        listing = (
+            db.query(Listing)
+            .filter(Listing.store_id == store.id, Listing.external_id == offer.external_id)
+            .first()
+        )
     if listing is None:
-        product = find_or_create_product(
+        product_id, product = match_or_create_product(
             db,
             title=offer.title,
             price=offer.price,
@@ -82,17 +103,20 @@ def upsert_offer(
             brand=offer.brand,
             image_url=offer.image_url,
             index=index,
+            flush=flush,
         )
         listing = Listing(
-            product_id=product.id,
             store_id=store.id,
             external_id=offer.external_id,
             title=offer.title,
             url=offer.url,
             image_url=offer.image_url,
         )
+        if product is not None:
+            listing.product = product
+        else:
+            listing.product_id = product_id
         db.add(listing)
-        db.flush()
     else:
         listing.title = offer.title
         listing.url = offer.url
@@ -115,20 +139,18 @@ def upsert_offer(
         == offer.original_price
     )
     if unchanged:
-        db.flush()
+        if flush:
+            db.flush()
         return listing, None
 
-    snapshot = PriceSnapshot(
-        listing_id=listing.id,
-        price=offer.price,
-        original_price=offer.original_price,
-        discount_pct=discount_pct,
-    )
+    snapshot = PriceSnapshot(price=offer.price, original_price=offer.original_price, discount_pct=discount_pct)
+    snapshot.listing = listing
     db.add(snapshot)
     listing.current_price = offer.price
     listing.current_original_price = offer.original_price
     listing.current_discount_pct = discount_pct
-    db.flush()
+    if flush:
+        db.flush()
     return listing, snapshot
 
 
@@ -171,10 +193,24 @@ def sync_cyber_cl(db: Session, client: PoliteClient) -> dict[str, dict]:
         return {}
 
 
+def prefetch_listings(db: Session, store: Store, external_ids: list[str]) -> dict[str, Listing]:
+    """One query for a whole page of offers instead of one per offer."""
+    if not external_ids:
+        return {}
+    listings = db.scalars(
+        select(Listing)
+        .options(selectinload(Listing.product))
+        .where(Listing.store_id == store.id, Listing.external_id.in_(external_ids))
+    )
+    return {listing.external_id: listing for listing in listings}
+
+
 async def scrape_store(db: Session, client: PoliteClient, scraper: StoreScraper, index: ProductIndex,
                        brands: dict[str, dict]) -> int:
     store = cyber_cl.sync_store_from_brand(db, scraper.slug, scraper.name, brands.get(scraper.cyber_brand_name))
     db.commit()
+    # Only products someone follows can trigger a price-drop alert.
+    favorited = set(db.scalars(select(Favorite.product_id)))
     run_started = utcnow()
     seen: set[str] = set()
     failed_departments = 0
@@ -185,18 +221,30 @@ async def scrape_store(db: Session, client: PoliteClient, scraper: StoreScraper,
         try:
             pages = (QUICK_PAGES if is_quick_mode() else MAX_PAGES_PER_DEPARTMENT) * scraper.pages_per_step
             for offers in scraper.iter_department(client, department, max_pages=pages):
+                # The same product can be listed twice on a page or under two departments.
+                page_offers = {}
                 for offer in offers:
-                    if offer.external_id in seen:
-                        continue  # same product listed under two departments
-                    seen.add(offer.external_id)
-                    listing, snapshot = upsert_offer(db, offer, offer.category_slug, index)
-                    if snapshot is not None:
+                    if offer.external_id not in seen:
+                        seen.add(offer.external_id)
+                        page_offers.setdefault(offer.external_id, offer)
+                existing = prefetch_listings(db, store, list(page_offers))
+                for external_id, offer in page_offers.items():
+                    previous = existing.get(external_id)
+                    listing, snapshot = upsert_offer(
+                        db, offer, offer.category_slug, index, store=store, listing=previous, flush=False
+                    )
+                    # A brand-new listing has no earlier price to drop from.
+                    if snapshot is not None and previous is not None and listing.product_id in favorited:
+                        db.flush()
                         await dispatch_alerts(db, listing, snapshot)
                     count += 1
+                db.flush()
+                index.register_pending()
                 db.commit()
         except Exception:
             failed_departments += 1
             db.rollback()
+            index.pending.clear()
             logger.exception("%s / %s failed after %d offers", scraper.name, department.label, count)
         logger.info("%s / %s: %d offers (%.0fs)", scraper.name, department.label, count, time.monotonic() - started)
 
