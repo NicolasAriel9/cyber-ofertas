@@ -1,11 +1,18 @@
 # Scheduled offer scraper. Runs on GitHub Actions instead of a Render cron
 # job because Render cron has no free plan (min US$1/month + a card on file).
+# The repo is public, so standard runners have unlimited free minutes.
 #
-# Budget: private repos get 2,000 free Actions minutes/month and a full sweep
-# takes ~50 min, so the schedule is limited to the Cyber Monday days
-# (Oct 4-8, UTC) every 3 hours: ~28 sweeps = ~1,400 min. Outside an event
-# window the scraper no-ops in about a minute (see app/scraper/event_windows.py).
+# Two kinds of runs, only during Cyber Monday (Oct 4-8, UTC):
+#   - quick, every 10 min: first pages of each department (new and featured
+#     deals); never deactivates listings.
+#   - full, every 3 hours: every department up to SCRAPE_MAX_PAGES; marks
+#     offers that disappeared as inactive.
+# Each store runs as its own parallel job, so a full sweep takes as long as
+# the slowest store (~20 min) instead of all of them in a row (~50 min).
+# Outside an event window the scraper no-ops (see app/scraper/event_windows.py).
 # For the next event, update the dates below and KNOWN_EVENTS.
+#
+# GitHub may start scheduled runs a few minutes late when it's busy.
 #
 # Required repo secrets (Settings -> Secrets and variables -> Actions):
 #   DATABASE_URL, TELEGRAM_BOT_TOKEN, TELEGRAM_BOT_USERNAME
@@ -14,9 +21,15 @@ name: Scrape offers
 
 on:
   schedule:
-    - cron: "0 */3 4-8 10 *"
+    - cron: "0 */3 4-8 10 *" # full
+    - cron: "5-55/10 * 4-8 10 *" # quick (offset so it never collides with full)
   workflow_dispatch:
     inputs:
+      mode:
+        description: "quick = first pages only, full = whole catalog"
+        type: choice
+        options: [quick, full]
+        default: quick
       force:
         description: "Scrape even outside the Cyber event window"
         type: boolean
@@ -26,38 +39,65 @@ on:
         type: string
         default: ""
 
-concurrency:
-  group: scrape
-  cancel-in-progress: false
-
 jobs:
   scrape:
     runs-on: ubuntu-latest
-    timeout-minutes: 90
+    timeout-minutes: 60
+    strategy:
+      fail-fast: false
+      matrix:
+        store: [falabella, paris, ripley, hites, sodimac, easy, jumbo]
+    # One run per store at a time. A quick run that arrives while that store's
+    # full sweep is running waits (and newer quick runs replace older waiting ones).
+    concurrency:
+      group: scrape-${{ matrix.store }}
+      cancel-in-progress: false
     defaults:
       run:
         working-directory: backend
     steps:
+      # matrix isn't available in a job-level `if`, so the "stores" filter of
+      # a manual run is applied here and the remaining steps are skipped.
+      - name: Selected?
+        id: sel
+        working-directory: .
+        env:
+          STORES_INPUT: ${{ inputs.stores }}
+          STORE: ${{ matrix.store }}
+        run: |
+          stores="$(echo "$STORES_INPUT" | tr -d ' ')"
+          if [ -z "$stores" ] || [[ ",$stores," == *",$STORE,"* ]]; then
+            echo "run=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "run=false" >> "$GITHUB_OUTPUT"
+          fi
+
       - uses: actions/checkout@v4
+        if: steps.sel.outputs.run == 'true'
 
       - uses: actions/setup-python@v5
+        if: steps.sel.outputs.run == 'true'
         with:
           python-version: "3.14"
           cache: pip
           cache-dependency-path: backend/requirements.txt
 
       - run: pip install -r requirements.txt
+        if: steps.sel.outputs.run == 'true'
 
       - name: Apply migrations
+        if: steps.sel.outputs.run == 'true' && matrix.store == 'falabella'
         run: alembic upgrade head
         env:
           DATABASE_URL: ${{ secrets.DATABASE_URL }}
 
-      - name: Scrape
+      - name: Scrape ${{ matrix.store }}
+        if: steps.sel.outputs.run == 'true'
         run: python -m app.scraper.cyber_scraper
         env:
           DATABASE_URL: ${{ secrets.DATABASE_URL }}
           TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
           TELEGRAM_BOT_USERNAME: ${{ secrets.TELEGRAM_BOT_USERNAME }}
+          SCRAPE_STORES: ${{ matrix.store }}
+          SCRAPE_MODE: ${{ github.event_name == 'workflow_dispatch' && inputs.mode || (github.event.schedule == '0 */3 4-8 10 *' && 'full' || 'quick') }}
           FORCE_SCRAPE: ${{ github.event_name == 'workflow_dispatch' && inputs.force && '1' || '' }}
-          SCRAPE_STORES: ${{ inputs.stores }}

@@ -16,7 +16,7 @@ logger = logging.getLogger(__name__)
 # plus a contact address so the traffic stays identifiable.
 USER_AGENT = (
     "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) "
-    "Chrome/130.0 Safari/537.36 cyber-ofertas-personal-tool/0.2 (contacto: 81039659+NicolasAriel9@users.noreply.github.com)"
+    "Chrome/130.0 Safari/537.36 cyber-ofertas-personal-tool/0.2 (+https://github.com/NicolasAriel9/cyber-ofertas)"
 )
 
 # Seconds to wait between two requests to the same host.

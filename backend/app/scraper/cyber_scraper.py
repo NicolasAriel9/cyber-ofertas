@@ -10,6 +10,11 @@
 
 Skips entirely outside an active Cyber event window (see event_windows.py)
 unless FORCE_SCRAPE=1. Limit to some stores with SCRAPE_STORES=falabella,paris.
+
+SCRAPE_MODE=quick only reads the first QUICK_PAGES pages of each department
+(where stores surface new and featured deals) and never deactivates listings,
+since it doesn't see the whole catalog. It's meant to run every ~10 minutes
+between full sweeps.
 """
 
 import asyncio
@@ -27,11 +32,18 @@ from app.scraper.event_windows import is_scrape_window_active
 from app.scraper.http import PoliteClient
 from app.scraper.parser import ScrapedOffer
 from app.scraper.stores import ALL_STORES, StoreScraper
+from app.scraper.stores.base import MAX_PAGES_PER_DEPARTMENT
 from app.services.alerts import check_price_drop, record_alert_sent
 from app.services.matcher import ProductIndex, find_or_create_product
 from app.services.telegram_client import format_price_drop_message, send_message
 
 logger = logging.getLogger(__name__)
+
+QUICK_PAGES = int(os.environ.get("SCRAPE_QUICK_PAGES", "2"))
+
+
+def is_quick_mode() -> bool:
+    return os.environ.get("SCRAPE_MODE", "full").lower() == "quick"
 
 
 def utcnow() -> datetime:
@@ -170,7 +182,8 @@ async def scrape_store(db: Session, client: PoliteClient, scraper: StoreScraper,
         started = time.monotonic()
         count = 0
         try:
-            for offers in scraper.iter_department(client, department):
+            pages = QUICK_PAGES if is_quick_mode() else MAX_PAGES_PER_DEPARTMENT
+            for offers in scraper.iter_department(client, department, max_pages=pages):
                 for offer in offers:
                     if offer.external_id in seen:
                         continue  # same product listed under two departments
@@ -186,7 +199,7 @@ async def scrape_store(db: Session, client: PoliteClient, scraper: StoreScraper,
             logger.exception("%s / %s failed after %d offers", scraper.name, department.label, count)
         logger.info("%s / %s: %d offers (%.0fs)", scraper.name, department.label, count, time.monotonic() - started)
 
-    if seen and not failed_departments:
+    if seen and not failed_departments and not is_quick_mode():
         stale = (
             db.query(Listing)
             .filter(Listing.store_id == store.id, Listing.is_active.is_(True), Listing.last_seen_at < run_started)
@@ -212,7 +225,10 @@ async def run_scrape() -> None:
                 if brands and scraper.cyber_brand_name not in brands:
                     logger.info("%s is not in cyber.cl's participant list -- scraping anyway", scraper.name)
                 totals[scraper.slug] = await scrape_store(db, client, scraper, index, brands)
-            logger.info("Scrape finished: %s (total %d)", totals, sum(totals.values()))
+            logger.info(
+                "Scrape finished (%s mode): %s (total %d)",
+                "quick" if is_quick_mode() else "full", totals, sum(totals.values()),
+            )
     finally:
         db.close()
 

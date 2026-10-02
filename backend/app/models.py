@@ -102,7 +102,7 @@ class Subscriber(Base):
 
     id: Mapped[int] = mapped_column(primary_key=True)
     name: Mapped[str] = mapped_column(String(80))
-    # BigInteger: Telegram chat ids don't fit a 32-bit INTEGER (e.g. <chat_id>).
+    # BigInteger: Telegram chat ids can exceed a 32-bit INTEGER (> 2,147,483,647).
     telegram_chat_id: Mapped[int | None] = mapped_column(BigInteger, unique=True, default=None)
     link_code: Mapped[str | None] = mapped_column(String(20), default=None)
     link_code_expires_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), default=None)
