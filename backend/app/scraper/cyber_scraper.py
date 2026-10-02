@@ -9,7 +9,8 @@
    inactive (the offer ended or dropped out of the store's top pages).
 
 Skips entirely outside an active Cyber event window (see event_windows.py)
-unless FORCE_SCRAPE=1. Limit to some stores with SCRAPE_STORES=falabella,paris.
+unless FORCE_SCRAPE=1. Limit to some stores with SCRAPE_STORES=falabella,paris
+(store slugs or job groups, e.g. marcas-vtex or marcas-shopify-1).
 
 SCRAPE_MODE=quick only reads the first QUICK_PAGES pages of each department
 (where stores surface new and featured deals) and never deactivates listings,
@@ -151,7 +152,7 @@ async def dispatch_alerts(db: Session, listing: Listing, snapshot: PriceSnapshot
 
 def selected_stores() -> list[StoreScraper]:
     wanted = {s.strip() for s in os.environ.get("SCRAPE_STORES", "").split(",") if s.strip()}
-    return [s for s in ALL_STORES if not wanted or s.slug in wanted]
+    return [s for s in ALL_STORES if not wanted or s.slug in wanted or s.job_group in wanted]
 
 
 def sync_cyber_cl(db: Session, client: PoliteClient) -> dict[str, dict]:
@@ -182,7 +183,7 @@ async def scrape_store(db: Session, client: PoliteClient, scraper: StoreScraper,
         started = time.monotonic()
         count = 0
         try:
-            pages = QUICK_PAGES if is_quick_mode() else MAX_PAGES_PER_DEPARTMENT
+            pages = (QUICK_PAGES if is_quick_mode() else MAX_PAGES_PER_DEPARTMENT) * scraper.pages_per_step
             for offers in scraper.iter_department(client, department, max_pages=pages):
                 for offer in offers:
                     if offer.external_id in seen:

@@ -12,7 +12,9 @@ router = APIRouter(dependencies=[Depends(require_auth)], tags=["catalog"])
 
 @router.get("/stores", response_model=list[StoreOut])
 def list_stores(db: Session = Depends(get_db)):
-    return db.query(Store).order_by(Store.name).all()
+    # ~200 brand stores are tracked; only offer the ones with something on sale.
+    has_offers = select(Listing.id).where(Listing.store_id == Store.id, Listing.is_active.is_(True)).exists()
+    return db.query(Store).filter(has_offers).order_by(Store.name).all()
 
 
 @router.get("/categories", response_model=list[CategoryOut])

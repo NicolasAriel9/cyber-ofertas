@@ -153,3 +153,22 @@ def test_answer_question_falls_back_when_unrecognized(db_session):
     _seed_catalog(db_session)
     answer = answer_question(db_session, "hola bot")
     assert "No entendí" in answer
+
+
+def test_parse_query_ignores_tiny_store_names_inside_words(db_session):
+    _seed_catalog(db_session)
+    db_session.add(Store(name="Mercado Libre", slug="mercadolibre"))
+    db_session.flush()
+    parsed = parse_query(db_session, "notebook lenovo con buen precio")
+    assert parsed["store"] is None
+    assert parse_query(db_session, "ofertas en mercado libre")["store"] == "mercadolibre"
+
+
+def test_parse_query_matches_brand_not_the_brands_own_store(db_session):
+    _seed_catalog(db_session)
+    db_session.add(Store(name="Samsung", slug="marca-samsung"))
+    db_session.add(Product(canonical_title="Smart TV Samsung 65", brand="Samsung"))
+    db_session.flush()
+    parsed = parse_query(db_session, "ofertas samsung")
+    assert parsed["store"] is None
+    assert parsed["brand"] == "Samsung"

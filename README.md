@@ -53,14 +53,20 @@ Step 1 (the scraper) is done; the rest needs accounts only you can create.
    `docs/cyber_cl_inspection_notes.md`. The scraper now reads cyber.cl for the
    official categories and participating stores, and pulls the offers from
    per-store scrapers (`backend/app/scraper/stores/`): Falabella, Paris,
-   Ripley, Hites, Sodimac, Easy and Jumbo. Run it locally with:
+   Ripley, Hites, Sodimac, Easy, Jumbo and Mercado Libre (its public
+   /ofertas page), plus ~200 brand-owned stores (Under Armour, Columbia,
+   Levi's, New Balance, Sony...) read through their platform's public catalog
+   (Shopify, VTEX or Magento, see `stores/brand_sites.py`). The brand list is
+   generated from cyber.cl -- refresh it before each event with
+   `python scripts/discover_brand_sites.py`. Run it locally with:
    ```
    cd backend
    set FORCE_SCRAPE=1
    .venv\Scripts\python.exe -m app.scraper.cyber_scraper
    ```
    Knobs (env vars): `SCRAPE_MAX_PAGES` (pages per department, default 10),
-   `SCRAPE_STORES` (e.g. `falabella,paris`), `SCRAPE_REQUEST_DELAY` (seconds
+   `SCRAPE_STORES` (store slugs or job groups, e.g. `falabella,marcas-vtex`),
+   `SCRAPE_REQUEST_DELAY` (seconds
    between requests to the same host, default 1).
 
 2. **Push the code to a private GitHub repo.** Create an empty private repo

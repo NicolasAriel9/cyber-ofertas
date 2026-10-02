@@ -7,8 +7,9 @@
 #     deals); never deactivates listings.
 #   - full, every 3 hours: every department up to SCRAPE_MAX_PAGES; marks
 #     offers that disappeared as inactive.
-# Each store runs as its own parallel job, so a full sweep takes as long as
-# the slowest store (~20 min) instead of all of them in a row (~50 min).
+# Each big store runs as its own parallel job, and the brand stores as one job
+# per platform, so a full sweep takes as long as the slowest job (~20 min)
+# instead of all of them in a row.
 # Outside an event window the scraper no-ops (see app/scraper/event_windows.py).
 # For the next event, update the dates below and KNOWN_EVENTS.
 #
@@ -35,7 +36,7 @@ on:
         type: boolean
         default: true
       stores:
-        description: "Only these stores (comma-separated, e.g. falabella,paris). Empty = all."
+        description: "Only these jobs (comma-separated, e.g. falabella,marcas-vtex). Empty = all."
         type: string
         default: ""
 
@@ -46,7 +47,10 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        store: [falabella, paris, ripley, hites, sodimac, easy, jumbo]
+        # Big retailers get one job each; the ~200 brand stores are batched
+        # into one job per platform (see app/scraper/stores/brand_sites.py).
+        store: [falabella, paris, ripley, hites, sodimac, easy, jumbo, mercadolibre,
+                marcas-shopify-1, marcas-shopify-2, marcas-shopify-3, marcas-vtex, marcas-magento]
     # One run per store at a time. A quick run that arrives while that store's
     # full sweep is running waits (and newer quick runs replace older waiting ones).
     concurrency:
