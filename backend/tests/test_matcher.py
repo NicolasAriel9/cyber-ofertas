@@ -116,3 +116,20 @@ def test_same_model_different_screen_size_is_not_matched(db_session):
     )
 
     assert product_a.id != product_b.id
+
+
+def test_upsert_records_snapshot_only_when_price_changes(db_session):
+    from app.models import PriceSnapshot
+    from app.scraper.cyber_scraper import upsert_offer
+    from app.scraper.parser import ScrapedOffer
+
+    def offer(price):
+        return ScrapedOffer("falabella", "Falabella", "tecnologia", "123", "Notebook X", "https://x", price, 500000, None)
+
+    _, first = upsert_offer(db_session, offer(400000), "tecnologia")
+    _, same = upsert_offer(db_session, offer(400000), "tecnologia")
+    listing, dropped = upsert_offer(db_session, offer(350000), "tecnologia")
+
+    assert first is not None and same is None and dropped is not None
+    assert db_session.query(PriceSnapshot).count() == 2
+    assert float(listing.current_price) == 350000

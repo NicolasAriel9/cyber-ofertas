@@ -49,7 +49,10 @@ def get_or_create_store(db: Session, slug: str, name: str) -> Store:
 
 def upsert_offer(
     db: Session, offer: ScrapedOffer, category_slug: str, index: ProductIndex | None = None
-) -> tuple[Listing, PriceSnapshot]:
+) -> tuple[Listing, PriceSnapshot | None]:
+    """Returns the new snapshot, or None when the price didn't change: history
+    is only recorded on changes, so re-scraping 40k+ offers every cycle doesn't
+    grow the DB (Neon's free tier blocks writes past 1 GB)."""
     store = get_or_create_store(db, offer.store_slug, offer.store_name)
 
     listing = (
@@ -91,6 +94,16 @@ def upsert_offer(
     discount_pct = None
     if offer.original_price and offer.original_price > 0:
         discount_pct = round((offer.original_price - offer.price) / offer.original_price * 100, 2)
+
+    unchanged = (
+        listing.current_price is not None
+        and float(listing.current_price) == offer.price
+        and (float(listing.current_original_price) if listing.current_original_price else None)
+        == offer.original_price
+    )
+    if unchanged:
+        db.flush()
+        return listing, None
 
     snapshot = PriceSnapshot(
         listing_id=listing.id,
@@ -163,7 +176,8 @@ async def scrape_store(db: Session, client: PoliteClient, scraper: StoreScraper,
                         continue  # same product listed under two departments
                     seen.add(offer.external_id)
                     listing, snapshot = upsert_offer(db, offer, offer.category_slug, index)
-                    await dispatch_alerts(db, listing, snapshot)
+                    if snapshot is not None:
+                        await dispatch_alerts(db, listing, snapshot)
                     count += 1
                 db.commit()
         except Exception:
