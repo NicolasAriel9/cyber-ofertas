@@ -1,12 +1,12 @@
 "use client";
 
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useInfiniteQuery, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { ExternalLink, Heart, PackageSearch, Search, SlidersHorizontal } from "lucide-react";
 import Link from "next/link";
 import { useState } from "react";
 import { api, ApiError, getSubscriberId, Listing, ListingFilters } from "@/lib/api";
 import { formatCLP } from "@/lib/format";
-import { Badge, Card, EmptyState, IconButton, Input, Select, Skeleton } from "@/components/ui";
+import { Badge, Button, Card, EmptyState, IconButton, Input, Select, Skeleton } from "@/components/ui";
 import { ProductThumb } from "@/components/ProductThumb";
 
 export default function ListingsPage() {
@@ -15,10 +15,15 @@ export default function ListingsPage() {
 
   const categoriesQuery = useQuery({ queryKey: ["categories"], queryFn: api.listCategories });
   const storesQuery = useQuery({ queryKey: ["stores"], queryFn: api.listStores });
-  const listingsQuery = useQuery({
+  const listingsQuery = useInfiniteQuery({
     queryKey: ["listings", filters],
-    queryFn: () => api.listListings(filters),
+    queryFn: ({ pageParam }) => api.listListings({ ...filters, page: pageParam }),
+    initialPageParam: 1,
+    getNextPageParam: (last, pages) =>
+      pages.reduce((n, p) => n + p.items.length, 0) < last.total ? pages.length + 1 : undefined,
   });
+  const listings = listingsQuery.data?.pages.flatMap((p) => p.items);
+  const total = listingsQuery.data?.pages[0]?.total;
 
   return (
     <div className="mx-auto max-w-5xl">
@@ -27,7 +32,9 @@ export default function ListingsPage() {
           Ofertas del <span className="brand-gradient-text">Cyber</span>
         </h1>
         <p className="mt-1 text-sm text-muted">
-          {listingsQuery.data ? `${listingsQuery.data.length} ofertas encontradas` : "Buscando las mejores ofertas..."}
+          {total !== undefined
+            ? `${total.toLocaleString("es-CL")} ofertas encontradas`
+            : "Buscando las mejores ofertas..."}
         </p>
       </div>
 
@@ -106,7 +113,7 @@ export default function ListingsPage() {
         />
       )}
 
-      {listingsQuery.data?.length === 0 && (
+      {listings?.length === 0 && (
         <EmptyState
           icon={<PackageSearch size={20} />}
           title="Todavía no hay ofertas"
@@ -115,10 +122,24 @@ export default function ListingsPage() {
       )}
 
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 md:grid-cols-3">
-        {listingsQuery.data?.map((listing) => (
+        {listings?.map((listing) => (
           <ListingCard key={listing.id} listing={listing} />
         ))}
       </div>
+
+      {listingsQuery.hasNextPage && (
+        <div className="mt-6 flex justify-center">
+          <Button
+            variant="secondary"
+            onClick={() => listingsQuery.fetchNextPage()}
+            disabled={listingsQuery.isFetchingNextPage}
+          >
+            {listingsQuery.isFetchingNextPage
+              ? "Cargando..."
+              : `Cargar más (${listings?.length.toLocaleString("es-CL")} de ${total?.toLocaleString("es-CL")})`}
+          </Button>
+        </div>
+      )}
     </div>
   );
 }

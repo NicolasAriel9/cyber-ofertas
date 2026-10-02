@@ -85,6 +85,8 @@ def upsert_offer(
         listing.is_active = True
         if offer.brand and not listing.product.brand:
             listing.product.brand = offer.brand
+        if offer.image_url and not listing.product.image_url:
+            listing.product.image_url = offer.image_url
 
     discount_pct = None
     if offer.original_price and offer.original_price > 0:

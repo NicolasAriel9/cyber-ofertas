@@ -51,7 +51,7 @@ class ApiError extends Error {
   }
 }
 
-async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
+async function rawRequest(path: string, options: RequestInit = {}): Promise<Response> {
   const creds = getCredentials();
   if (!creds) throw new ApiError(401, "No credentials configured");
 
@@ -63,8 +63,18 @@ async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
   if (!res.ok) {
     throw new ApiError(res.status, await res.text());
   }
+  return res;
+}
+
+async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
+  const res = await rawRequest(path, options);
   if (res.status === 204) return undefined as T;
   return res.json() as Promise<T>;
+}
+
+export interface ListingsPage {
+  items: Listing[];
+  total: number;
 }
 
 export interface Store {
@@ -154,7 +164,11 @@ export const api = {
   listStores: () => request<Store[]>("/stores"),
   listCategories: () => request<Category[]>("/categories"),
   listSubscribers: () => request<Subscriber[]>("/subscribers"),
-  listListings: (filters: ListingFilters) => request<Listing[]>(`/listings${toQuery(filters)}`),
+  listListings: async (filters: ListingFilters): Promise<ListingsPage> => {
+    const res = await rawRequest(`/listings${toQuery(filters)}`);
+    const items = (await res.json()) as Listing[];
+    return { items, total: Number(res.headers.get("X-Total-Count") ?? items.length) };
+  },
   getProduct: (id: number) => request<Product>(`/products/${id}`),
   getPriceHistory: (id: number, days = 30) =>
     request<PriceHistoryPoint[]>(`/products/${id}/price-history${toQuery({ days })}`),

@@ -7,6 +7,7 @@ sturdier to parse than the visual price markup.
 import html
 import json
 import re
+from urllib.parse import urljoin
 
 from app.scraper.http import PoliteClient
 from app.scraper.parser import ScrapedOffer
@@ -16,8 +17,11 @@ BASE_URL = "https://www.hites.com"
 PAGE_SIZE = 48
 TILE_SPLIT = 'class="h-100 plp-grid-tile"'
 GTM_RE = re.compile(r'data-gtmselectitem="([^"]+)"')
-HREF_RE = re.compile(r'<a class="image-item[^"]*" href="([^"]+)"')
-IMG_RE = re.compile(r'<img class="img-fluid w-100 tile-image js-image1"\s+src="([^"]+)"')
+# The product-name link is the clean canonical URL; the image link carries
+# variant query params (and is absolute on some tiles, relative on others).
+HREF_RE = re.compile(r'<a class="link product-name[^"]*" href="([^"]+)"|<a class="image-item[^"]*" href="([^"]+)"')
+# Fashion tiles put a data-gtm attribute between class and src.
+IMG_RE = re.compile(r'<img class="img-fluid w-100 tile-image js-image1"[^>]*?\ssrc="([^"]+)"', re.S)
 
 
 def parse_hites_tile(tile_html: str, category_slug: str) -> ScrapedOffer | None:
@@ -38,7 +42,7 @@ def parse_hites_tile(tile_html: str, category_slug: str) -> ScrapedOffer | None:
         category_slug=category_slug,
         external_id=str(item["item_id"]),
         title=html.unescape(item.get("item_name") or "").strip(),
-        url=BASE_URL + html.unescape(href.group(1)),
+        url=urljoin(BASE_URL, html.unescape(href.group(1) or href.group(2))),
         price=price,
         original_price=price + discount if discount > 0 else None,
         image_url=html.unescape(image.group(1)) if image else None,

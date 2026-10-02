@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, Query
+from fastapi import APIRouter, Depends, Query, Response
 from sqlalchemy import or_
 from sqlalchemy.orm import Session, joinedload
 
@@ -41,6 +41,7 @@ def list_listings(
     sort: str = Query("discount", pattern="^(discount|price_asc|price_desc|recent)$"),
     page: int = Query(1, ge=1),
     page_size: int = Query(30, ge=1, le=100),
+    response: Response = None,
     db: Session = Depends(get_db),
 ):
     query = (
@@ -62,6 +63,7 @@ def list_listings(
     if min_discount is not None:
         query = query.filter(Listing.current_discount_pct >= min_discount)
 
+    response.headers["X-Total-Count"] = str(query.order_by(None).count())
     listings = query.order_by(*SORTS[sort]).offset((page - 1) * page_size).limit(page_size).all()
     return [_to_listing_out(listing) for listing in listings]
 
