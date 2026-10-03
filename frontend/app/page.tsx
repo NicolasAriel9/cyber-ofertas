@@ -1,20 +1,26 @@
 "use client";
 
-import { useInfiniteQuery, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { ExternalLink, Heart, PackageSearch, Search, SlidersHorizontal } from "lucide-react";
-import Link from "next/link";
-import { useState } from "react";
-import { api, ApiError, getSubscriberId, Listing, ListingFilters } from "@/lib/api";
-import { formatCLP } from "@/lib/format";
-import { Badge, Button, Card, EmptyState, IconButton, Input, Select, Skeleton } from "@/components/ui";
-import { ProductThumb } from "@/components/ProductThumb";
+import { useInfiniteQuery, useQuery } from "@tanstack/react-query";
+import { ArrowRight, ChevronDown, Flame, PackageSearch, Search, SlidersHorizontal, X } from "lucide-react";
+import { useRef, useState } from "react";
+import { api, CategoryHighlights, ListingFilters } from "@/lib/api";
+import { categoryStyle } from "@/lib/categories";
+import { cn } from "@/lib/cn";
+import { Button, EmptyState, Select } from "@/components/ui";
+import { OfferCard, OfferCardSkeleton } from "@/components/OfferCard";
+
+// Categories shown before "ver más" in the highlights block.
+const HIGHLIGHTS_INITIAL = 6;
 
 export default function ListingsPage() {
   const [filters, setFilters] = useState<ListingFilters>({ sort: "discount" });
   const [search, setSearch] = useState("");
+  const [showAllHighlights, setShowAllHighlights] = useState(false);
+  const resultsRef = useRef<HTMLDivElement>(null);
 
   const categoriesQuery = useQuery({ queryKey: ["categories"], queryFn: api.listCategories });
   const storesQuery = useQuery({ queryKey: ["stores"], queryFn: api.listStores });
+  const highlightsQuery = useQuery({ queryKey: ["highlights"], queryFn: api.listHighlights });
   // Brand-owned stores (slug "marca-...") are listed after the big retailers.
   const allStores = storesQuery.data ?? [];
   const storeGroups: [string, typeof allStores][] = [
@@ -31,197 +37,270 @@ export default function ListingsPage() {
   const listings = listingsQuery.data?.pages.flatMap((p) => p.items);
   const total = listingsQuery.data?.pages[0]?.total;
 
+  const isFiltered = Boolean(filters.search || filters.category || filters.store);
+  const activeCategory = categoriesQuery.data?.find((c) => c.slug === filters.category);
+  const highlights = highlightsQuery.data ?? [];
+  const visibleHighlights = showAllHighlights ? highlights : highlights.slice(0, HIGHLIGHTS_INITIAL);
+  const totalOffers = highlights.reduce((n, h) => n + h.total, 0);
+
+  function selectCategory(slug: string | undefined) {
+    setFilters((f) => ({ ...f, category: slug }));
+    // Let the chips re-render first, then bring the results into view.
+    requestAnimationFrame(() => resultsRef.current?.scrollIntoView({ behavior: "smooth", block: "start" }));
+  }
+
+  function clearFilters() {
+    setSearch("");
+    setFilters((f) => ({ sort: f.sort }));
+  }
+
   return (
     <div className="mx-auto max-w-5xl">
-      <div className="mb-6">
-        <h1 className="text-2xl font-bold tracking-tight sm:text-3xl">
-          Ofertas del <span className="brand-gradient-text">Cyber</span>
-        </h1>
-        <p className="mt-1 text-sm text-muted">
-          {total !== undefined
-            ? `${total.toLocaleString("es-CL")} ofertas encontradas`
-            : "Buscando las mejores ofertas..."}
+      {/* Hero */}
+      <section className="relative mb-6 overflow-hidden rounded-3xl brand-gradient px-5 py-7 text-white shadow-lg shadow-accent/20 sm:px-8 sm:py-9">
+        <div className="pointer-events-none absolute -right-16 -top-16 h-56 w-56 rounded-full bg-white/10 blur-2xl" />
+        <div className="pointer-events-none absolute -bottom-20 left-1/3 h-48 w-48 rounded-full bg-fuchsia-400/20 blur-3xl" />
+        <p className="relative inline-flex items-center gap-1.5 rounded-full bg-white/15 px-2.5 py-1 text-xs font-semibold backdrop-blur">
+          <Flame size={13} /> Cyber Monday 2026
         </p>
-      </div>
-
-      <Card className="mb-6 flex flex-wrap items-center gap-2 p-3">
-        <div className="relative min-w-[180px] flex-1">
-          <Search size={15} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-muted" />
-          <form
-            onSubmit={(e) => {
-              e.preventDefault();
-              setFilters((f) => ({ ...f, search }));
-            }}
-          >
-            <Input
-              className="pl-9"
-              placeholder="Buscar producto..."
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-            />
-          </form>
-        </div>
-
-        <Select
-          value={filters.category ?? ""}
-          onChange={(e) => setFilters((f) => ({ ...f, category: e.target.value || undefined }))}
+        <h1 className="relative mt-3 text-3xl font-extrabold tracking-tight sm:text-4xl">Las mejores ofertas del Cyber</h1>
+        <p className="relative mt-1.5 text-sm text-white/80">
+          {totalOffers
+            ? `${totalOffers.toLocaleString("es-CL")} ofertas de ${allStores.length} tiendas, actualizadas cada 10 minutos`
+            : "Comparando precios de las principales tiendas de Chile"}
+        </p>
+        <form
+          className="relative mt-5 flex max-w-xl items-center gap-2 rounded-2xl bg-white p-1.5 shadow-xl"
+          onSubmit={(e) => {
+            e.preventDefault();
+            setFilters((f) => ({ ...f, search: search || undefined }));
+            resultsRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+          }}
         >
-          <option value="">Todas las categorías</option>
-          {categoriesQuery.data?.map((c) => (
-            <option key={c.id} value={c.slug}>
-              {c.name}
-            </option>
-          ))}
-        </Select>
+          <Search size={17} className="ml-2.5 shrink-0 text-zinc-400" />
+          <input
+            className="min-w-0 flex-1 bg-transparent py-2 text-sm text-zinc-900 outline-none placeholder:text-zinc-400"
+            placeholder="¿Qué andas buscando? Ej: notebook, smart tv 55..."
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+          />
+          <button type="submit" className="rounded-xl bg-zinc-900 px-4 py-2 text-sm font-semibold text-white hover:bg-zinc-700">
+            Buscar
+          </button>
+        </form>
+      </section>
 
-        <Select
-          value={filters.store ?? ""}
-          onChange={(e) => setFilters((f) => ({ ...f, store: e.target.value || undefined }))}
-        >
-          <option value="">Todas las tiendas</option>
-          {storeGroups.map(([label, stores]) =>
-            stores.length ? (
-              <optgroup key={label} label={label}>
-                {stores.map((s) => (
-                  <option key={s.id} value={s.slug}>
-                    {s.name}
-                  </option>
-                ))}
-              </optgroup>
-            ) : null,
-          )}
-        </Select>
-
-        <Select
-          value={filters.sort}
-          onChange={(e) => setFilters((f) => ({ ...f, sort: e.target.value as ListingFilters["sort"] }))}
-        >
-          <option value="discount">Mayor descuento</option>
-          <option value="price_asc">Precio: menor a mayor</option>
-          <option value="price_desc">Precio: mayor a menor</option>
-        </Select>
-      </Card>
-
-      {listingsQuery.isLoading && (
-        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 md:grid-cols-3">
-          {Array.from({ length: 6 }).map((_, i) => (
-            <Card key={i} className="overflow-hidden">
-              <Skeleton className="h-36 w-full rounded-none" />
-              <div className="space-y-2 p-4">
-                <Skeleton className="h-3 w-16" />
-                <Skeleton className="h-4 w-full" />
-                <Skeleton className="h-5 w-24" />
-              </div>
-            </Card>
-          ))}
-        </div>
-      )}
-
-      {listingsQuery.isError && (
-        <EmptyState
-          icon={<SlidersHorizontal size={20} />}
-          title="No se pudieron cargar las ofertas"
-          description="Revisa la conexión con el backend e intenta de nuevo."
-        />
-      )}
-
-      {listings?.length === 0 && (
-        <EmptyState
-          icon={<PackageSearch size={20} />}
-          title="Todavía no hay ofertas"
-          description="Es normal si el Cyber aún no comienza o el scraper no ha corrido."
-        />
-      )}
-
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 md:grid-cols-3">
-        {listings?.map((listing) => (
-          <ListingCard key={listing.id} listing={listing} />
+      {/* Category chips */}
+      <nav className="-mx-4 mb-8 flex gap-2 overflow-x-auto px-4 pb-1 [scrollbar-width:none]">
+        <CategoryChip active={!filters.category} label="Todas" onClick={() => setFilters((f) => ({ ...f, category: undefined }))} />
+        {categoriesQuery.data?.map((c) => (
+          <CategoryChip
+            key={c.id}
+            slug={c.slug}
+            label={c.name}
+            active={filters.category === c.slug}
+            onClick={() => selectCategory(filters.category === c.slug ? undefined : c.slug)}
+          />
         ))}
-      </div>
+      </nav>
 
-      {listingsQuery.hasNextPage && (
-        <div className="mt-6 flex justify-center">
-          <Button
-            variant="secondary"
-            onClick={() => listingsQuery.fetchNextPage()}
-            disabled={listingsQuery.isFetchingNextPage}
-          >
-            {listingsQuery.isFetchingNextPage
-              ? "Cargando..."
-              : `Cargar más (${listings?.length.toLocaleString("es-CL")} de ${total?.toLocaleString("es-CL")})`}
-          </Button>
-        </div>
+      {/* Best offers per category */}
+      {!isFiltered && (
+        <section className="mb-12">
+          <div className="mb-5">
+            <h2 className="text-xl font-bold tracking-tight sm:text-2xl">Lo mejor de cada categoría</h2>
+            <p className="mt-0.5 text-sm text-muted">Las 3 ofertas que más ahorran en cada sección, sin precios inflados.</p>
+          </div>
+
+          {highlightsQuery.isLoading && (
+            <div className="space-y-10">
+              {Array.from({ length: 2 }).map((_, i) => (
+                <div key={i}>
+                  <div className="skeleton mb-4 h-8 w-48 rounded-xl" />
+                  <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+                    {Array.from({ length: 3 }).map((_, j) => (
+                      <OfferCardSkeleton key={j} />
+                    ))}
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+
+          <div className="space-y-10">
+            {visibleHighlights.map((h) => (
+              <HighlightRow key={h.category.id} highlight={h} onSeeAll={() => selectCategory(h.category.slug)} />
+            ))}
+          </div>
+
+          {highlights.length > HIGHLIGHTS_INITIAL && (
+            <div className="mt-8 flex justify-center">
+              <Button variant="secondary" onClick={() => setShowAllHighlights((v) => !v)}>
+                {showAllHighlights ? "Mostrar menos categorías" : `Ver las ${highlights.length - HIGHLIGHTS_INITIAL} categorías restantes`}
+                <ChevronDown size={15} className={cn("transition-transform", showAllHighlights && "rotate-180")} />
+              </Button>
+            </div>
+          )}
+        </section>
       )}
+
+      {/* All offers */}
+      <section ref={resultsRef} className="scroll-mt-20">
+        <div className="mb-4 flex flex-wrap items-end justify-between gap-3">
+          <div>
+            <h2 className="text-xl font-bold tracking-tight sm:text-2xl">
+              {activeCategory ? activeCategory.name : filters.search ? `Resultados para "${filters.search}"` : "Todas las ofertas"}
+            </h2>
+            <p className="mt-0.5 text-sm text-muted">
+              {total !== undefined ? `${total.toLocaleString("es-CL")} ofertas` : "Buscando ofertas..."}
+            </p>
+          </div>
+          <div className="flex flex-wrap items-center gap-2">
+            {isFiltered && (
+              <Button variant="ghost" size="sm" onClick={clearFilters}>
+                <X size={14} /> Limpiar filtros
+              </Button>
+            )}
+            <Select
+              className="py-2"
+              value={filters.store ?? ""}
+              onChange={(e) => setFilters((f) => ({ ...f, store: e.target.value || undefined }))}
+            >
+              <option value="">Todas las tiendas</option>
+              {storeGroups.map(([label, stores]) =>
+                stores.length ? (
+                  <optgroup key={label} label={label}>
+                    {stores.map((s) => (
+                      <option key={s.id} value={s.slug}>
+                        {s.name}
+                      </option>
+                    ))}
+                  </optgroup>
+                ) : null,
+              )}
+            </Select>
+            <Select
+              className="py-2"
+              value={filters.sort}
+              onChange={(e) => setFilters((f) => ({ ...f, sort: e.target.value as ListingFilters["sort"] }))}
+            >
+              <option value="discount">Mayor descuento</option>
+              <option value="price_asc">Precio: menor a mayor</option>
+              <option value="price_desc">Precio: mayor a menor</option>
+              <option value="recent">Recién llegadas</option>
+            </Select>
+          </div>
+        </div>
+
+        {listingsQuery.isLoading && (
+          <div className="grid grid-cols-2 gap-3 sm:gap-4 md:grid-cols-3 lg:grid-cols-4">
+            {Array.from({ length: 8 }).map((_, i) => (
+              <OfferCardSkeleton key={i} />
+            ))}
+          </div>
+        )}
+
+        {listingsQuery.isError && (
+          <EmptyState
+            icon={<SlidersHorizontal size={20} />}
+            title="No se pudieron cargar las ofertas"
+            description="Revisa la conexión con el backend e intenta de nuevo."
+          />
+        )}
+
+        {listings?.length === 0 && (
+          <EmptyState
+            icon={<PackageSearch size={20} />}
+            title={isFiltered ? "No encontramos ofertas con esos filtros" : "Todavía no hay ofertas"}
+            description={
+              isFiltered ? "Prueba con otra palabra o quita algún filtro." : "Es normal si el Cyber aún no comienza o el scraper no ha corrido."
+            }
+          />
+        )}
+
+        <div className="grid grid-cols-2 gap-3 sm:gap-4 md:grid-cols-3 lg:grid-cols-4">
+          {listings?.map((listing) => (
+            <OfferCard key={listing.id} listing={listing} />
+          ))}
+        </div>
+
+        {listingsQuery.hasNextPage && (
+          <div className="mt-8 flex justify-center">
+            <Button
+              variant="secondary"
+              onClick={() => listingsQuery.fetchNextPage()}
+              disabled={listingsQuery.isFetchingNextPage}
+            >
+              {listingsQuery.isFetchingNextPage
+                ? "Cargando..."
+                : `Cargar más (${listings?.length.toLocaleString("es-CL")} de ${total?.toLocaleString("es-CL")})`}
+            </Button>
+          </div>
+        )}
+      </section>
     </div>
   );
 }
 
-function ListingCard({ listing }: { listing: Listing }) {
-  const queryClient = useQueryClient();
-  const subscriberId = getSubscriberId();
-
-  const addFavorite = useMutation({
-    mutationFn: () => {
-      if (!subscriberId) throw new Error("No subscriber selected");
-      return api.addFavorite(subscriberId, listing.product_id);
-    },
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["favorites"] }),
-  });
-
-  const alreadyFavorited = addFavorite.isSuccess;
-  const duplicateFavorite = addFavorite.error instanceof ApiError && addFavorite.error.status === 409;
-
+function CategoryChip({
+  slug,
+  label,
+  active,
+  onClick,
+}: {
+  slug?: string;
+  label: string;
+  active: boolean;
+  onClick: () => void;
+}) {
+  const Icon = slug ? categoryStyle(slug).icon : Flame;
   return (
-    <Card className="group flex flex-col overflow-hidden transition-shadow duration-200 hover:shadow-lg hover:shadow-black/5">
-      <Link href={`/product?id=${listing.product_id}`} className="relative block">
-        <ProductThumb
-          src={listing.image_url}
-          seed={listing.title}
-          label={listing.store.name}
-          className="h-36 w-full"
-        />
-        {listing.latest_discount_pct ? (
-          <Badge variant="accent" className="absolute left-2.5 top-2.5 shadow-sm">
-            -{listing.latest_discount_pct.toFixed(0)}%
-          </Badge>
-        ) : null}
-      </Link>
+    <button
+      type="button"
+      onClick={onClick}
+      className={cn(
+        "flex shrink-0 items-center gap-1.5 rounded-full border px-3.5 py-2 text-sm font-medium transition-all active:scale-95",
+        active
+          ? "border-transparent bg-foreground text-bg shadow-md"
+          : "border-border bg-surface text-foreground hover:border-accent/40 hover:bg-surface-hover"
+      )}
+    >
+      <Icon size={15} />
+      {label}
+    </button>
+  );
+}
 
-      <div className="flex flex-1 flex-col gap-2 p-4">
-        <div className="flex items-start justify-between gap-2">
-          <Badge>{listing.store.name}</Badge>
-          <IconButton
-            title="Agregar a favoritos"
-            active={alreadyFavorited || duplicateFavorite}
-            onClick={() => addFavorite.mutate()}
-            disabled={addFavorite.isPending}
-          >
-            <Heart size={15} fill={alreadyFavorited || duplicateFavorite ? "currentColor" : "none"} />
-          </IconButton>
-        </div>
-
-        <Link href={`/product?id=${listing.product_id}`} className="line-clamp-2 text-sm font-medium">
-          {listing.title}
-        </Link>
-
-        <div className="mt-auto flex items-baseline gap-2 pt-1">
-          <span className="text-lg font-bold">
-            {listing.latest_price ? formatCLP(listing.latest_price) : "-"}
+function HighlightRow({ highlight, onSeeAll }: { highlight: CategoryHighlights; onSeeAll: () => void }) {
+  const { icon: Icon, gradient } = categoryStyle(highlight.category.slug);
+  return (
+    <div className="animate-fade-in-up">
+      <div className="mb-3 flex items-center justify-between gap-3">
+        <div className="flex min-w-0 items-center gap-3">
+          <span className={cn("flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br text-white shadow-md", gradient)}>
+            <Icon size={19} />
           </span>
-          {listing.latest_original_price && (
-            <span className="text-xs text-muted line-through">{formatCLP(listing.latest_original_price)}</span>
-          )}
+          <div className="min-w-0">
+            <h3 className="truncate text-lg font-bold leading-tight">{highlight.category.name}</h3>
+            <p className="text-xs text-muted">{highlight.total.toLocaleString("es-CL")} ofertas</p>
+          </div>
         </div>
-
-        <a
-          href={listing.url}
-          target="_blank"
-          rel="noopener noreferrer"
-          className="mt-1 flex items-center gap-1 text-xs font-medium text-accent hover:underline"
+        <button
+          type="button"
+          onClick={onSeeAll}
+          className="flex shrink-0 items-center gap-1 rounded-full px-3 py-1.5 text-sm font-semibold text-accent transition-colors hover:bg-accent/10"
         >
-          Ver oferta <ExternalLink size={12} />
-        </a>
+          Ver todas <ArrowRight size={14} />
+        </button>
       </div>
-    </Card>
+      {/* Swipeable on phones, three columns from sm up. */}
+      <div className="-mx-4 flex snap-x snap-mandatory gap-3 overflow-x-auto px-4 pb-2 [scrollbar-width:none] sm:mx-0 sm:grid sm:grid-cols-3 sm:gap-4 sm:overflow-visible sm:px-0 sm:pb-0">
+        {highlight.listings.map((listing, i) => (
+          <div key={listing.id} className="w-[72%] shrink-0 snap-start sm:w-auto">
+            <OfferCard listing={listing} rank={i + 1} />
+          </div>
+        ))}
+      </div>
+    </div>
   );
 }
