@@ -1,4 +1,4 @@
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 
 from sqlalchemy import (
     JSON,
@@ -11,10 +11,12 @@ from sqlalchemy import (
     Numeric,
     String,
     UniqueConstraint,
+    and_,
 )
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.db import Base
+from app.utils import ensure_aware
 
 
 def utcnow() -> datetime:
@@ -86,6 +88,22 @@ class Listing(Base):
     price_snapshots: Mapped[list["PriceSnapshot"]] = relationship(
         back_populates="listing", order_by="PriceSnapshot.scraped_at"
     )
+
+    @property
+    def is_live(self) -> bool:
+        return self.is_active and ensure_aware(self.last_seen_at) >= utcnow() - LISTING_STALE_AFTER
+
+
+# A full sweep deactivates offers that disappeared, but only when it read the
+# whole store: a store that starts blocking the scraper (Ripley, Oct 2026)
+# would otherwise keep showing its last prices forever. Offers not seen for a
+# day are hidden instead; during the event full sweeps run every 3 hours.
+LISTING_STALE_AFTER = timedelta(hours=24)
+
+
+def listing_is_live():
+    """SQL counterpart of Listing.is_live."""
+    return and_(Listing.is_active.is_(True), Listing.last_seen_at >= utcnow() - LISTING_STALE_AFTER)
 
 
 class PriceSnapshot(Base):

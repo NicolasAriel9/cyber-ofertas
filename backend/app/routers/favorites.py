@@ -21,7 +21,7 @@ def list_subscribers(db: Session = Depends(get_db)):
 
 
 def _product_summary(product: Product) -> ProductSummaryOut:
-    active = [x for x in product.listings if x.is_active and x.current_price is not None]
+    active = [x for x in product.listings if x.is_live and x.current_price is not None]
     best = min(active, key=lambda x: x.current_price, default=None)
     discounts = [float(x.current_discount_pct) for x in active if x.current_discount_pct]
     seen_prices = [float(s.price) for x in active for s in x.price_snapshots]
