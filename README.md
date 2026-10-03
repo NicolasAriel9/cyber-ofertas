@@ -97,7 +97,7 @@ Step 1 (the scraper) is done; the rest needs accounts only you can create.
    In the GitHub repo: Settings -> Secrets and variables -> Actions -> add
    `DATABASE_URL`, `TELEGRAM_BOT_TOKEN`, `TELEGRAM_BOT_USERNAME`. The
    workflow (`.github/workflows/scrape.yml`) runs on Oct 4-8: a quick pass
-   every 10 min (first pages of each department, where new deals show up)
+   every 5 min (first pages of each department, where new deals show up)
    and a full sweep every 3 h, each store as its own parallel job. The repo
    is public so Actions minutes are unlimited. Run it by hand from Actions ->
    Scrape offers -> Run workflow (mode quick/full, optional store list).

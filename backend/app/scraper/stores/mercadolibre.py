@@ -13,7 +13,7 @@ import re
 
 from app.scraper.http import PoliteClient
 from app.scraper.parser import ScrapedOffer
-from app.scraper.stores.base import Department, StoreScraper
+from app.scraper.stores.base import Department, StoreScraper, parse_rating
 
 DEALS_URL = "https://www.mercadolibre.cl/ofertas"
 CARD_SPLIT = re.compile(r'<div class="andes-card poly-card[^"]*"')
@@ -26,6 +26,9 @@ IMG_RE = re.compile(r'<img class="poly-component__picture"[^>]*?(?:data-src|src)
 # /p/MLC123, are shared by several sellers), else the id in the path.
 WID_RE = re.compile(r"wid=(MLC\d+)")
 PATH_ID_RE = re.compile(r"/p/(MLC\d+)|/MLC-?(\d+)")
+# Screen-reader text of the stars: "Calificación 4.8 de 5 estrellas". The deals
+# page shows units sold next to it, not how many reviews there are.
+RATING_RE = re.compile(r"Calificaci\S+ ([\d.]+) de 5")
 
 
 def parse_card(card_html: str, category_slug: str) -> ScrapedOffer | None:
@@ -44,6 +47,7 @@ def parse_card(card_html: str, category_slug: str) -> ScrapedOffer | None:
         return None
     previous = PREVIOUS_RE.search(card_html)
     image = IMG_RE.search(card_html)
+    rating = RATING_RE.search(card_html)
     price = float(current.group(1))
     original = float(previous.group(1)) if previous else None
     return ScrapedOffer(
@@ -56,6 +60,7 @@ def parse_card(card_html: str, category_slug: str) -> ScrapedOffer | None:
         price=price,
         original_price=original if original and original > price else None,
         image_url=image.group(1) if image else None,
+        rating=parse_rating(rating.group(1))[0] if rating else None,
     )
 
 

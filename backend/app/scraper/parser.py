@@ -18,6 +18,10 @@ class ScrapedOffer:
     original_price: float | None
     image_url: str | None
     brand: str | None = None
+    # Shoppers' rating out of 5 and how many reviews it averages (None when
+    # the store doesn't publish the count, like Mercado Libre's deals page).
+    rating: float | None = None
+    review_count: int | None = None
     # Travel offers: a short line shown under the title ("Solo ida · 22 oct"),
     # and exact-title product matching. Fuzzy matching would merge "Santiago ->
     # Lima, solo ida" with "Santiago -> Lima, ida y vuelta".

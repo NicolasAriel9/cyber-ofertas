@@ -10,7 +10,7 @@ Results are capped by Constructor at 10,000 per group.
 
 from app.scraper.http import PoliteClient
 from app.scraper.parser import ScrapedOffer
-from app.scraper.stores.base import Department, StoreScraper
+from app.scraper.stores.base import Department, StoreScraper, parse_rating
 
 BROWSE_URL = "https://ac.cnstrc.com/browse/group_id/{group_id}"
 PAGE_SIZE = 100
@@ -69,6 +69,7 @@ class ParisScraper(ConstructorStoreScraper):
         # the list price is reconstructed from them (rounded to the peso).
         pct = data.get("discountPercentage") or 0
         original = round(price / (1 - pct / 100)) if 0 < pct < 100 else None
+        rating, review_count = parse_rating(data.get("averageRating"), data.get("countRating"))
         return ScrapedOffer(
             store_slug=self.slug,
             store_name=self.name,
@@ -80,6 +81,8 @@ class ParisScraper(ConstructorStoreScraper):
             original_price=float(original) if original else None,
             image_url=data.get("image_url"),
             brand=data.get("brand"),
+            rating=rating,
+            review_count=review_count,
         )
 
 

@@ -32,6 +32,19 @@ def parse_clp(raw: str | int | float | None) -> float | None:
     return float(digits) if digits else None
 
 
+def parse_rating(rating: str | int | float | None, count: str | int | None = None) -> tuple[float | None, int | None]:
+    """(rating out of 5, review count), or (None, None) when there are no
+    reviews -- stores report unrated products as 0 stars."""
+    try:
+        value = float(rating) if rating not in (None, "") else 0.0
+        reviews = int(count) if count not in (None, "") else None
+    except (TypeError, ValueError):
+        return None, None
+    if not 0 < value <= 5 or reviews == 0:
+        return None, None
+    return round(value, 1), reviews
+
+
 class StoreScraper:
     slug: str
     name: str

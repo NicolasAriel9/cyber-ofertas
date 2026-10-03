@@ -103,6 +103,10 @@ export interface Listing {
   /** Travel offers: dates, nights, what the price covers. */
   details: string | null;
   category_slug: string | null;
+  /** Shoppers' rating out of 5; review_count is null when the store doesn't say. */
+  rating: number | null;
+  review_count: number | null;
+  first_seen_at: string | null;
 }
 
 /** Retail offers ("/") or travel deals ("/viajes"). */
@@ -171,7 +175,7 @@ export interface ListingFilters {
   store?: string;
   search?: string;
   min_discount?: number;
-  sort?: "discount" | "price_asc" | "price_desc" | "recent";
+  sort?: "discount" | "price_asc" | "price_desc" | "recent" | "rating";
   page?: number;
 }
 

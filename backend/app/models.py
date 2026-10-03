@@ -5,7 +5,9 @@ from sqlalchemy import (
     BigInteger,
     Boolean,
     DateTime,
+    Float,
     ForeignKey,
+    Integer,
     Numeric,
     String,
     UniqueConstraint,
@@ -76,6 +78,8 @@ class Listing(Base):
     current_price: Mapped[float | None] = mapped_column(Numeric(12, 2), default=None, index=True)
     current_original_price: Mapped[float | None] = mapped_column(Numeric(12, 2), default=None)
     current_discount_pct: Mapped[float | None] = mapped_column(Numeric(5, 2), default=None, index=True)
+    rating: Mapped[float | None] = mapped_column(Float, default=None)
+    review_count: Mapped[int | None] = mapped_column(Integer, default=None)
 
     product: Mapped[Product] = relationship(back_populates="listings")
     store: Mapped[Store] = relationship(back_populates="listings")

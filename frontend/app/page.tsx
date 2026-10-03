@@ -13,7 +13,7 @@ const PRODUCTS: SectionConfig = {
   ),
   title: "Las mejores ofertas del Cyber",
   describe: (offers, stores) =>
-    `${offers.toLocaleString("es-CL")} ofertas de ${stores} tiendas, actualizadas cada 10 minutos`,
+    `${offers.toLocaleString("es-CL")} ofertas de ${stores} tiendas, actualizadas cada 5 minutos`,
   fallbackDescription: "Comparando precios de las principales tiendas de Chile",
   heroClassName: "brand-gradient",
   searchPlaceholder: "¿Qué andas buscando? Ej: notebook, smart tv 55...",
