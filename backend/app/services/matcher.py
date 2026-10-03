@@ -10,7 +10,7 @@ from collections import defaultdict
 from dataclasses import dataclass, field
 
 from rapidfuzz import fuzz, process
-from sqlalchemy import func
+from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
 from app.models import Category, Listing, Product
@@ -135,6 +135,7 @@ def match_or_create_product(
     image_url: str | None,
     index: ProductIndex,
     flush: bool = True,
+    exact: bool = False,
 ) -> tuple[int | None, Product | None]:
     """Return (id of the matching product, None) or (None, new product).
 
@@ -146,7 +147,17 @@ def match_or_create_product(
     category = index.get_or_create_category(db, category_slug) if category_slug else None
     category_id = category.id if category else None
 
-    product_id = index.best_match(title, price, category_id)
+    if exact:
+        pending = next(
+            (p for p, _ in index.pending if p.canonical_title == title and p.category_id == category_id), None
+        )
+        if pending is not None:
+            return None, pending
+        product_id = db.scalar(
+            select(Product.id).where(Product.canonical_title == title, Product.category_id == category_id).limit(1)
+        )
+    else:
+        product_id = index.best_match(title, price, category_id)
     if product_id is not None:
         return product_id, None
 

@@ -5,6 +5,8 @@ catalog (see brand_sites.py).
 Not covered (checked 2026-10-02): Lider.cl answers bots with a "Robot or
 human?" challenge, Tottus's site returned Cloudflare 526, and Adidas, Nike,
 The North Face and Mammut block automated requests (403).
+
+Travel (flights, packages, hotels) lives in travel.py: JetSMART and Cocha.
 """
 
 from app.scraper.stores.base import Department, StoreScraper
@@ -14,6 +16,7 @@ from app.scraper.stores.falabella import FalabellaScraper, SodimacScraper
 from app.scraper.stores.hites import HitesScraper
 from app.scraper.stores.mercadolibre import MercadoLibreScraper
 from app.scraper.stores.ripley import RipleyScraper
+from app.scraper.stores.travel import CochaScraper, JetSmartScraper
 
 RETAILERS: list[StoreScraper] = [
     FalabellaScraper(),
@@ -26,6 +29,8 @@ RETAILERS: list[StoreScraper] = [
     MercadoLibreScraper(),
 ]
 
-ALL_STORES: list[StoreScraper] = RETAILERS + load_brand_sites()
+TRAVEL: list[StoreScraper] = [JetSmartScraper(), CochaScraper()]
 
-__all__ = ["ALL_STORES", "RETAILERS", "Department", "StoreScraper"]
+ALL_STORES: list[StoreScraper] = RETAILERS + TRAVEL + load_brand_sites()
+
+__all__ = ["ALL_STORES", "RETAILERS", "TRAVEL", "Department", "StoreScraper"]

@@ -49,7 +49,8 @@ jobs:
       matrix:
         # Big retailers get one job each; the ~200 brand stores are batched
         # into one job per platform (see app/scraper/stores/brand_sites.py).
-        store: [falabella, paris, ripley, hites, sodimac, easy, jumbo, mercadolibre,
+        # jetsmart and cocha are the travel section (app/scraper/stores/travel.py).
+        store: [falabella, paris, ripley, hites, sodimac, easy, jumbo, mercadolibre, jetsmart, cocha,
                 marcas-shopify-1, marcas-shopify-2, marcas-shopify-3, marcas-vtex, marcas-magento]
     # One run per store at a time. A quick run that arrives while that store's
     # full sweep is running waits (and newer quick runs replace older waiting ones).

@@ -3,6 +3,7 @@
 import { ExternalLink, Heart, Trophy } from "lucide-react";
 import Link from "next/link";
 import { Listing } from "@/lib/api";
+import { categoryStyle } from "@/lib/categories";
 import { cn } from "@/lib/cn";
 import { useFavorites } from "@/lib/favorites";
 import { formatCLP } from "@/lib/format";
@@ -32,6 +33,8 @@ export function OfferCard({ listing, rank }: { listing: Listing; rank?: number }
   const isFavorite = favorites.isFavorite(listing.product_id);
   const savings = savingsOf(listing.latest_price, listing.latest_original_price);
   const productHref = `/product?id=${listing.product_id}`;
+  // Flights have no photo: show the category's icon instead of a letter.
+  const placeholderIcon = listing.details ? categoryStyle(listing.category_slug ?? undefined).icon : undefined;
 
   return (
     <article className="group relative flex h-full flex-col overflow-hidden rounded-2xl border border-border bg-surface transition-all duration-200 hover:-translate-y-0.5 hover:shadow-xl hover:shadow-black/10">
@@ -40,7 +43,12 @@ export function OfferCard({ listing, rank }: { listing: Listing; rank?: number }
           src={listing.image_url}
           seed={listing.title}
           label={listing.store.name}
-          className="aspect-[4/3] w-full object-contain p-3 transition-transform duration-300 group-hover:scale-105"
+          icon={placeholderIcon}
+          className={cn(
+            "aspect-[4/3] w-full transition-transform duration-300 group-hover:scale-105",
+            // Product shots sit on white; destination photos fill the card.
+            listing.details ? "object-cover" : "object-contain p-3"
+          )}
         />
         <div className="absolute left-2.5 top-2.5 flex items-center gap-1.5">
           {listing.latest_discount_pct ? <DiscountBadge pct={listing.latest_discount_pct} /> : null}
@@ -72,6 +80,7 @@ export function OfferCard({ listing, rank }: { listing: Listing; rank?: number }
         <Link href={productHref} className="line-clamp-2 text-sm font-medium leading-snug hover:text-accent">
           {listing.title}
         </Link>
+        {listing.details && <p className="text-xs text-muted">{listing.details}</p>}
 
         <div className="mt-auto pt-2">
           {listing.latest_original_price && (

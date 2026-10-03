@@ -47,6 +47,10 @@ class StoreScraper:
     # more of them, so SCRAPE_MAX_PAGES means roughly the same number of
     # products everywhere.
     pages_per_step: int = 1
+    # Retail offers without a crossed-out price aren't deals, so they're
+    # dropped. Travel sites publish "desde $X" fares with no "before" price:
+    # those are the offer, so travel scrapers keep everything.
+    discounted_only: bool = True
 
     @property
     def job_group(self) -> str:
@@ -62,6 +66,6 @@ class StoreScraper:
         """Yield one list of discounted offers per page."""
         for page in range(1, max_pages + 1):
             offers, has_more = self.fetch_page(client, department, page)
-            yield [offer for offer in offers if offer.is_discounted]
+            yield [offer for offer in offers if offer.is_discounted or not self.discounted_only]
             if not has_more or not offers:
                 return

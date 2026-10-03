@@ -3,12 +3,13 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
-import { LogOut, Send, ShoppingBag, Sparkles, Star, UserRound } from "lucide-react";
+import { LogOut, Plane, Send, ShoppingBag, Sparkles, Star, UserRound } from "lucide-react";
 import { clearCredentials, clearSubscriber, getSubscriberName } from "@/lib/api";
 import { Avatar } from "@/components/ui";
 
 const LINKS = [
   { href: "/", label: "Ofertas", icon: ShoppingBag },
+  { href: "/viajes", label: "Viajes", icon: Plane },
   { href: "/favorites", label: "Favoritos", icon: Star },
   { href: "/telegram", label: "Telegram", icon: Send },
 ];
@@ -43,7 +44,8 @@ export default function Header() {
 
         <nav className="flex items-center gap-1 rounded-full border border-border bg-surface p-1">
           {LINKS.map((link) => {
-            const active = pathname === link.href;
+            // Static export serves pages with a trailing slash ("/viajes/").
+            const active = pathname.replace(/\/$/, "") === link.href.replace(/\/$/, "");
             const Icon = link.icon;
             return (
               <Link

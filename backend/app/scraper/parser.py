@@ -18,6 +18,11 @@ class ScrapedOffer:
     original_price: float | None
     image_url: str | None
     brand: str | None = None
+    # Travel offers: a short line shown under the title ("Solo ida · 22 oct"),
+    # and exact-title product matching. Fuzzy matching would merge "Santiago ->
+    # Lima, solo ida" with "Santiago -> Lima, ida y vuelta".
+    details: str | None = None
+    exact_match: bool = False
 
     @property
     def is_discounted(self) -> bool:

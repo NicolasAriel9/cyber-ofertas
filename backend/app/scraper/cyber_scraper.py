@@ -104,6 +104,7 @@ def upsert_offer(
             image_url=offer.image_url,
             index=index,
             flush=flush,
+            exact=offer.exact_match,
         )
         listing = Listing(
             store_id=store.id,
@@ -127,6 +128,8 @@ def upsert_offer(
             listing.product.brand = offer.brand
         if offer.image_url and not listing.product.image_url:
             listing.product.image_url = offer.image_url
+    if offer.details != (listing.raw_attributes or {}).get("details"):
+        listing.raw_attributes = {**(listing.raw_attributes or {}), "details": offer.details}
 
     discount_pct = None
     if offer.original_price and offer.original_price > 0:

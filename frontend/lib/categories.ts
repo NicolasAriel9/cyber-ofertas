@@ -1,5 +1,6 @@
 import {
   Baby,
+  BedDouble,
   Bike,
   BookOpen,
   CarFront,
@@ -15,11 +16,13 @@ import {
   Moon,
   Music,
   PawPrint,
+  Plane,
   Shirt,
   ShoppingBag,
   Sofa,
   Sparkles,
   Tag,
+  TreePalm,
 } from "lucide-react";
 
 interface CategoryStyle {
@@ -49,6 +52,10 @@ const STYLES: Record<string, CategoryStyle> = {
   "vestuario-industrial": { icon: HardHat, gradient: "from-orange-500 to-amber-600" },
   "ropa-interior-y-pijamas": { icon: Moon, gradient: "from-indigo-400 to-purple-500" },
   "equipaje-bolsos-y-maletas": { icon: Luggage, gradient: "from-cyan-500 to-blue-600" },
+  // Cyber Viajes (created by the travel scrapers, not cyber.cl).
+  vuelos: { icon: Plane, gradient: "from-sky-500 to-blue-600" },
+  paquetes: { icon: TreePalm, gradient: "from-teal-400 to-cyan-600" },
+  alojamientos: { icon: BedDouble, gradient: "from-indigo-400 to-violet-600" },
 };
 
 const FALLBACK: CategoryStyle = { icon: Tag, gradient: "from-violet-500 to-blue-500" };
