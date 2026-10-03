@@ -34,20 +34,21 @@ def _to_listing_out(listing: Listing) -> ListingOut:
 
 
 MIN_REVIEWS = 3
+# A rating backed by enough reviews to trust (see the "rating" sort).
+WELL_RATED = and_(Listing.rating.is_not(None), func.coalesce(Listing.review_count, MIN_REVIEWS) >= MIN_REVIEWS)
+SAVINGS = Listing.current_original_price - Listing.current_price
 
 SORTS = {
     "discount": (Listing.current_discount_pct.desc().nulls_last(), Listing.id),
     "price_asc": (Listing.current_price.asc().nulls_last(), Listing.id),
     "price_desc": (Listing.current_price.desc().nulls_last(), Listing.id),
     "recent": (Listing.first_seen_at.desc(), Listing.id.desc()),
+    "savings": (SAVINGS.desc().nulls_last(), Listing.id),
     # A 5-star product with one review shouldn't outrank a 4.8 with hundreds:
     # ratings backed by fewer than MIN_REVIEWS reviews go after the rest.
     # Mercado Libre doesn't publish the count, so its ratings count as backed.
     "rating": (
-        case(
-            (and_(Listing.rating.is_not(None), func.coalesce(Listing.review_count, MIN_REVIEWS) >= MIN_REVIEWS), 0),
-            else_=1,
-        ),
+        case((WELL_RATED, 0), else_=1),
         Listing.rating.desc().nulls_last(),
         Listing.review_count.desc().nulls_last(),
         Listing.current_discount_pct.desc().nulls_last(),
@@ -62,8 +63,11 @@ def list_listings(
     store: str | None = None,
     search: str | None = None,
     min_discount: float | None = None,
+    min_rating: float | None = None,
+    min_price: float | None = None,
+    max_price: float | None = None,
     section: str | None = Query(None, pattern=SECTION_PATTERN),
-    sort: str = Query("discount", pattern="^(discount|price_asc|price_desc|recent|rating)$"),
+    sort: str = Query("discount", pattern="^(discount|savings|price_asc|price_desc|recent|rating)$"),
     page: int = Query(1, ge=1),
     page_size: int = Query(30, ge=1, le=100),
     response: Response = None,
@@ -89,6 +93,12 @@ def list_listings(
             query = query.filter(or_(Listing.title.ilike(f"%{word}%"), Product.brand.ilike(f"%{word}%")))
     if min_discount is not None:
         query = query.filter(Listing.current_discount_pct >= min_discount)
+    if min_rating is not None:
+        query = query.filter(WELL_RATED, Listing.rating >= min_rating)
+    if min_price is not None:
+        query = query.filter(Listing.current_price >= min_price)
+    if max_price is not None:
+        query = query.filter(Listing.current_price <= max_price)
 
     response.headers["X-Total-Count"] = str(query.order_by(None).count())
     listings = query.order_by(*SORTS[sort]).offset((page - 1) * page_size).limit(page_size).all()

@@ -175,7 +175,11 @@ export interface ListingFilters {
   store?: string;
   search?: string;
   min_discount?: number;
-  sort?: "discount" | "price_asc" | "price_desc" | "recent" | "rating";
+  /** Stars out of 5; only ratings backed by a few reviews count. */
+  min_rating?: number;
+  min_price?: number;
+  max_price?: number;
+  sort?: "discount" | "savings" | "price_asc" | "price_desc" | "recent" | "rating";
   page?: number;
 }
 
