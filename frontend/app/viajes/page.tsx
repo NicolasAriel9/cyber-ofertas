@@ -22,6 +22,21 @@ const TRAVEL: SectionConfig = {
   defaultSort: "price_asc",
   groupStores: false,
   allStoresLabel: "Todos los sitios",
+  sorts: [
+    ["price_asc", "Precio: menor a mayor"],
+    ["discount", "Mayor descuento"],
+    ["price_desc", "Precio: mayor a menor"],
+    ["recent", "Recién llegadas"],
+  ],
+  // Travel sites publish neither ratings nor (outside the event) discounts.
+  qualityFilters: false,
+  priceRanges: [
+    [0, 50_000],
+    [50_000, 200_000],
+    [200_000, 500_000],
+    [500_000, 1_000_000],
+    [1_000_000, undefined],
+  ],
   categoryOrder: ["vuelos", "paquetes", "alojamientos"],
 };
 

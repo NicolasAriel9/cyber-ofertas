@@ -7,7 +7,8 @@ import { ReactNode, Suspense, useEffect, useRef, useState } from "react";
 import { api, CategoryHighlights, ListingFilters, Section } from "@/lib/api";
 import { categoryStyle } from "@/lib/categories";
 import { cn } from "@/lib/cn";
-import { Button, EmptyState, Select } from "@/components/ui";
+import { formatCLP } from "@/lib/format";
+import { Button, EmptyState } from "@/components/ui";
 import { OfferCard, OfferCardSkeleton } from "@/components/OfferCard";
 
 // Categories shown before "ver más" in the highlights block.
@@ -39,13 +40,45 @@ export interface SectionConfig {
   searchPlaceholder: string;
   highlightsTitle: string;
   highlightsDescription: string;
-  defaultSort: NonNullable<ListingFilters["sort"]>;
+  defaultSort: SortKey;
   /** Group the store picker into retailers and brand stores. */
   groupStores: boolean;
   /** Empty option of the store picker ("Todas las tiendas"). */
   allStoresLabel: string;
   /** Chip order by category slug; the rest keep the API's alphabetical order. */
   categoryOrder?: string[];
+  /** Sort picker options, as [value, label]. */
+  sorts: [SortKey, string][];
+  /** Minimum discount and star filters (retail only: travel sites have neither). */
+  qualityFilters: boolean;
+  /** Price filter options, as [min, max] in CLP; max undefined = no limit. */
+  priceRanges: [number, number | undefined][];
+}
+
+type SortKey = NonNullable<ListingFilters["sort"]>;
+
+const DISCOUNT_OPTIONS = [30, 50, 70];
+const RATING_OPTIONS = [4, 4.5];
+
+/** "?precio=20000-100000" <-> [20000, 100000]; "1000000-" has no upper limit. */
+function parsePriceRange(value: string | null): [number | undefined, number | undefined] {
+  const match = value?.match(/^(\d+)-(\d*)$/);
+  return match ? [Number(match[1]) || undefined, match[2] ? Number(match[2]) : undefined] : [undefined, undefined];
+}
+
+/** Short enough for a pill on a phone: "$20 mil a $100 mil", "Más de $1 millón". */
+function compactCLP(amount: number): string {
+  if (amount >= 1_000_000) {
+    const millions = amount / 1_000_000;
+    return `$${millions.toLocaleString("es-CL")} ${millions === 1 ? "millón" : "millones"}`;
+  }
+  return amount >= 1_000 ? `$${(amount / 1_000).toLocaleString("es-CL")} mil` : formatCLP(amount);
+}
+
+function priceRangeLabel([min, max]: [number, number | undefined]): string {
+  if (max === undefined) return `Más de ${compactCLP(min)}`;
+  if (!min) return `Hasta ${compactCLP(max)}`;
+  return `${compactCLP(min)} a ${compactCLP(max)}`;
 }
 
 export function OffersBrowser({ config }: { config: SectionConfig }) {
@@ -59,8 +92,9 @@ export function OffersBrowser({ config }: { config: SectionConfig }) {
 function Listings({ config }: { config: SectionConfig }) {
   const { section } = config;
   const scrollKey = `cyber-ofertas-scroll-${section}`;
-  // Filters live in the URL (?categoria=...&tienda=...&q=...&orden=...&mas=1) so
-  // they survive opening a product and coming back, and links can be shared.
+  // Filters live in the URL (?categoria=...&tienda=...&q=...&orden=...&descuento=
+  // ...&estrellas=...&precio=...&mas=1) so they survive opening a product and
+  // coming back, and links can be shared.
   const searchParams = useSearchParams();
   const router = useRouter();
   const query = searchParams.toString();
@@ -69,9 +103,14 @@ function Listings({ config }: { config: SectionConfig }) {
     category: searchParams.get("categoria") ?? undefined,
     store: searchParams.get("tienda") ?? undefined,
     search: searchParams.get("q") ?? undefined,
-    sort: (searchParams.get("orden") as ListingFilters["sort"]) ?? config.defaultSort,
+    sort: (searchParams.get("orden") as SortKey | null) ?? config.defaultSort,
+    min_discount: Number(searchParams.get("descuento")) || undefined,
+    min_rating: Number(searchParams.get("estrellas")) || undefined,
   };
+  [filters.min_price, filters.max_price] = parsePriceRange(searchParams.get("precio"));
   const showAllHighlights = searchParams.get("mas") === "1";
+  // Phones show only the sort picker and a "Filtros" button that opens the rest.
+  const [filtersOpen, setFiltersOpen] = useState(false);
   const [search, setSearch] = useState(filters.search ?? "");
   const resultsRef = useRef<HTMLDivElement>(null);
   const scrollRestored = useRef(false);
@@ -127,7 +166,15 @@ function Listings({ config }: { config: SectionConfig }) {
   const listings = listingsQuery.data?.pages.flatMap((p) => p.items);
   const total = listingsQuery.data?.pages[0]?.total;
 
-  const isFiltered = Boolean(filters.search || filters.category || filters.store);
+  // Narrowed or re-sorted: show the matching offers right under the filters
+  // instead of below the per-category highlights.
+  const hasRefinements = Boolean(
+    filters.store || filters.min_discount || filters.min_rating || filters.min_price || filters.max_price
+  );
+  const isFiltered = Boolean(filters.search || filters.category || hasRefinements || filters.sort !== config.defaultSort);
+  const refinementCount = [filters.store, filters.min_discount, filters.min_rating, filters.min_price || filters.max_price].filter(
+    Boolean
+  ).length;
   const categories = [...(categoriesQuery.data ?? [])].sort((a, b) => {
     const order = config.categoryOrder ?? [];
     const rank = (slug: string) => (order.includes(slug) ? order.indexOf(slug) : order.length);
@@ -177,9 +224,23 @@ function Listings({ config }: { config: SectionConfig }) {
     updateUrl({ categoria: slug });
   }
 
+  function applyFilter(changes: Record<string, string | undefined>) {
+    setFiltersOpen(false);
+    scrollToResults.current = true;
+    updateUrl(changes);
+  }
+
   function clearFilters() {
     setSearch("");
-    updateUrl({ categoria: undefined, tienda: undefined, q: undefined });
+    applyFilter({
+      categoria: undefined,
+      tienda: undefined,
+      q: undefined,
+      orden: undefined,
+      descuento: undefined,
+      estrellas: undefined,
+      precio: undefined,
+    });
   }
 
   return (
@@ -224,7 +285,7 @@ function Listings({ config }: { config: SectionConfig }) {
       </section>
 
       {/* Category chips */}
-      <nav className="-mx-4 mb-8 flex gap-2 overflow-x-auto px-4 pb-1 [scrollbar-width:none]">
+      <nav className="-mx-4 mb-2 flex gap-2 overflow-x-auto px-4 pb-1 [scrollbar-width:none]">
         <CategoryChip active={!filters.category} label="Todas" onClick={() => updateUrl({ categoria: undefined })} />
         {categories.map((c) => (
           <CategoryChip
@@ -236,6 +297,116 @@ function Listings({ config }: { config: SectionConfig }) {
           />
         ))}
       </nav>
+
+      {/* Filters: sticky under the header, so they're at hand anywhere on the page. */}
+      <div className="sticky top-16 z-30 -mx-4 mb-8 border-b border-border bg-bg/90 px-4 py-2.5 backdrop-blur-md">
+        <div className="flex flex-wrap items-center gap-2">
+          <SlidersHorizontal size={16} className="shrink-0 text-muted max-sm:hidden" />
+          <button
+            type="button"
+            onClick={() => setFiltersOpen((open) => !open)}
+            className={cn(
+              "flex shrink-0 items-center gap-1.5 rounded-full border px-3 py-1.5 text-[13px] font-medium sm:hidden",
+              refinementCount || filtersOpen
+                ? "border-accent bg-accent/10 text-accent"
+                : "border-border bg-surface text-foreground"
+            )}
+          >
+            <SlidersHorizontal size={14} /> Filtros
+            {refinementCount > 0 && (
+              <span className="flex h-5 min-w-5 items-center justify-center rounded-full bg-accent px-1 text-xs text-accent-foreground">
+                {refinementCount}
+              </span>
+            )}
+          </button>
+          <FilterSelect
+            label="Ordenar"
+            active={filters.sort !== config.defaultSort}
+            value={filters.sort ?? config.defaultSort}
+            onChange={(v) => applyFilter({ orden: v })}
+          >
+            {config.sorts.map(([value, label]) => (
+              <option key={value} value={value}>
+                {label}
+              </option>
+            ))}
+          </FilterSelect>
+          <div className={cn("grid w-full grid-cols-2 gap-2 sm:contents", !filtersOpen && "max-sm:hidden")}>
+            <FilterSelect
+              label="Tienda"
+              active={Boolean(filters.store)}
+              value={filters.store ?? ""}
+              onChange={(v) => applyFilter({ tienda: v || undefined })}
+            >
+              <option value="">{config.allStoresLabel}</option>
+              {storeGroups.map(([label, stores]) =>
+                stores.length ? (
+                  <optgroup key={label} label={label}>
+                    {stores.map((s) => (
+                      <option key={s.id} value={s.slug}>
+                        {s.name}
+                      </option>
+                    ))}
+                  </optgroup>
+                ) : null,
+              )}
+            </FilterSelect>
+            {config.qualityFilters && (
+              <>
+                <FilterSelect
+                  label="Descuento mínimo"
+                  active={Boolean(filters.min_discount)}
+                  value={String(filters.min_discount ?? "")}
+                  onChange={(v) => applyFilter({ descuento: v || undefined })}
+                >
+                  <option value="">Descuento</option>
+                  {DISCOUNT_OPTIONS.map((pct) => (
+                    <option key={pct} value={pct}>
+                      {pct}% o más
+                    </option>
+                  ))}
+                </FilterSelect>
+                <FilterSelect
+                  label="Valoración mínima"
+                  active={Boolean(filters.min_rating)}
+                  value={String(filters.min_rating ?? "")}
+                  onChange={(v) => applyFilter({ estrellas: v || undefined })}
+                >
+                  <option value="">Valoración</option>
+                  {RATING_OPTIONS.map((stars) => (
+                    <option key={stars} value={stars}>
+                      ★ {stars.toLocaleString("es-CL")} o más
+                    </option>
+                  ))}
+                </FilterSelect>
+              </>
+            )}
+            <FilterSelect
+              label="Precio"
+              active={Boolean(filters.min_price || filters.max_price)}
+              value={searchParams.get("precio") ?? ""}
+              onChange={(v) => applyFilter({ precio: v || undefined })}
+            >
+              <option value="">Precio</option>
+              {config.priceRanges.map(([min, max]) => (
+                <option key={min} value={`${min}-${max ?? ""}`}>
+                  {priceRangeLabel([min, max])}
+                </option>
+              ))}
+            </FilterSelect>
+          </div>
+          {isFiltered && (
+            <button
+              type="button"
+              onClick={clearFilters}
+              title="Quitar todos los filtros"
+              className="flex shrink-0 items-center gap-1 rounded-full px-2.5 py-1.5 text-[13px] font-medium text-muted transition-colors hover:bg-surface-hover hover:text-foreground"
+            >
+              <X size={14} /> <span className="max-sm:sr-only">Limpiar</span>
+            </button>
+          )}
+        </div>
+      </div>
 
       {/* Best offers per category */}
       {!isFiltered && (
@@ -278,7 +449,7 @@ function Listings({ config }: { config: SectionConfig }) {
       )}
 
       {/* All offers */}
-      <section ref={resultsRef} className="scroll-mt-20">
+      <section ref={resultsRef} className="scroll-mt-32">
         <div className="mb-4 flex flex-wrap items-end justify-between gap-3">
           <div>
             <h2 className="text-xl font-bold tracking-tight sm:text-2xl">
@@ -294,42 +465,6 @@ function Listings({ config }: { config: SectionConfig }) {
                 En vivo
               </span>
             </p>
-          </div>
-          <div className="flex flex-wrap items-center gap-2">
-            {isFiltered && (
-              <Button variant="ghost" size="sm" onClick={clearFilters}>
-                <X size={14} /> Limpiar filtros
-              </Button>
-            )}
-            <Select
-              className="py-2"
-              value={filters.store ?? ""}
-              onChange={(e) => updateUrl({ tienda: e.target.value || undefined })}
-            >
-              <option value="">{config.allStoresLabel}</option>
-              {storeGroups.map(([label, stores]) =>
-                stores.length ? (
-                  <optgroup key={label} label={label}>
-                    {stores.map((s) => (
-                      <option key={s.id} value={s.slug}>
-                        {s.name}
-                      </option>
-                    ))}
-                  </optgroup>
-                ) : null,
-              )}
-            </Select>
-            <Select
-              className="py-2"
-              value={filters.sort}
-              onChange={(e) => updateUrl({ orden: e.target.value })}
-            >
-              <option value="discount">Mayor descuento</option>
-              <option value="price_asc">Precio: menor a mayor</option>
-              <option value="price_desc">Precio: mayor a menor</option>
-              <option value="recent">Recién llegadas</option>
-              {section === "productos" && <option value="rating">Mejor valoradas</option>}
-            </Select>
           </div>
         </div>
 
@@ -443,5 +578,41 @@ function HighlightRow({ highlight, onSeeAll }: { highlight: CategoryHighlights; 
         ))}
       </div>
     </div>
+  );
+}
+
+/** A native select styled as a pill; highlighted while it narrows the results. */
+function FilterSelect({
+  label,
+  active,
+  value,
+  onChange,
+  children,
+}: {
+  label: string;
+  active: boolean;
+  value: string;
+  onChange: (value: string) => void;
+  children: ReactNode;
+}) {
+  return (
+    <label
+      className={cn(
+        "relative flex shrink-0 items-center rounded-full border text-[13px] font-medium transition-colors",
+        active
+          ? "border-accent bg-accent/10 text-accent"
+          : "border-border bg-surface text-foreground hover:bg-surface-hover"
+      )}
+    >
+      <span className="sr-only">{label}</span>
+      <select
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        className="min-w-0 flex-1 cursor-pointer appearance-none bg-transparent py-1.5 pl-3 pr-7 outline-none [&_optgroup]:bg-surface [&_option]:bg-surface [&_option]:text-foreground"
+      >
+        {children}
+      </select>
+      <ChevronDown size={14} className="pointer-events-none absolute right-2.5" />
+    </label>
   );
 }

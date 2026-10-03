@@ -22,6 +22,22 @@ const PRODUCTS: SectionConfig = {
   defaultSort: "discount",
   groupStores: true,
   allStoresLabel: "Todas las tiendas",
+  sorts: [
+    ["discount", "Mayor descuento"],
+    ["savings", "Mayor ahorro en $"],
+    ["rating", "Mejor valoradas"],
+    ["price_asc", "Precio: menor a mayor"],
+    ["price_desc", "Precio: mayor a menor"],
+    ["recent", "Recién llegadas"],
+  ],
+  qualityFilters: true,
+  priceRanges: [
+    [0, 20_000],
+    [20_000, 100_000],
+    [100_000, 300_000],
+    [300_000, 1_000_000],
+    [1_000_000, undefined],
+  ],
 };
 
 export default function HomePage() {

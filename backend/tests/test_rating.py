@@ -79,3 +79,35 @@ def test_rating_sort_puts_well_reviewed_first(db_session):
     )
     assert [l.title for l in listings] == ["Muchas reseñas", "Una reseña", "Sin reseñas"]
     assert (listings[0].rating, listings[0].review_count) == (4.7, 250)
+
+
+def test_filters_combine_rating_discount_and_price(db_session):
+    tech = Category(name="Tecnología", slug="tecnologia")
+    paris = Store(name="Paris", slug="paris")
+    db_session.add_all([tech, paris])
+    db_session.flush()
+    rows = [
+        # title, price, original, rating, reviews
+        ("TV bien valorada", 300_000, 600_000, 4.7, 120),   # -50%, saves 300k
+        ("Audífonos bien valorados", 20_000, 50_000, 4.8, 40),  # -60%, saves 30k
+        ("TV una reseña", 250_000, 600_000, 5.0, 1),        # too few reviews
+        ("TV regular", 200_000, 600_000, 3.9, 300),         # rating too low
+        ("TV poco descuento", 500_000, 600_000, 4.9, 80),   # -17%
+    ]
+    for title, price, original, rating, reviews in rows:
+        listing = _listing(db_session, paris, tech, title, price, original)
+        listing.rating, listing.review_count = rating, reviews
+    db_session.flush()
+
+    class FakeResponse:
+        headers: dict = {}
+
+    def titles(**filters):
+        params = dict(category=None, store=None, search=None, min_discount=None, section=None, sort="discount",
+                      page=1, page_size=30, response=FakeResponse(), db=db_session)
+        return [l.title for l in listings_router.list_listings(**{**params, **filters})]
+
+    assert titles(min_rating=4.5, min_discount=30) == ["Audífonos bien valorados", "TV bien valorada"]
+    assert titles(min_rating=4.5, min_discount=30, sort="savings") == ["TV bien valorada", "Audífonos bien valorados"]
+    assert titles(min_rating=4.5, min_discount=30, max_price=100_000) == ["Audífonos bien valorados"]
+    assert titles(min_price=280_000, max_price=1_000_000) == ["TV bien valorada", "TV poco descuento"]
