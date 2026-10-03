@@ -5,7 +5,8 @@ from sqlalchemy.orm import Session
 from app.auth import require_auth
 from app.db import get_db
 from app.models import Favorite, Product, Subscriber
-from app.schemas import FavoriteCreate, FavoriteOut, ProductSummaryOut, SubscriberOut
+from app.schemas import FavoriteCreate, FavoriteOut, FavoriteUpdate, ProductSummaryOut, SubscriberOut
+from app.utils import ensure_aware
 
 router = APIRouter(dependencies=[Depends(require_auth)], tags=["favorites"])
 
@@ -20,37 +21,60 @@ def list_subscribers(db: Session = Depends(get_db)):
 
 
 def _product_summary(product: Product) -> ProductSummaryOut:
-    best_price = None
-    best_store = None
-    max_discount_pct = None
-    for listing in product.listings:
-        if not listing.is_active or not listing.price_snapshots:
-            continue
-        latest = listing.price_snapshots[-1]
-        price = float(latest.price)
-        if best_price is None or price < best_price:
-            best_price = price
-            best_store = listing.store.name
-        if latest.discount_pct and (max_discount_pct is None or float(latest.discount_pct) > max_discount_pct):
-            max_discount_pct = float(latest.discount_pct)
+    active = [x for x in product.listings if x.is_active and x.current_price is not None]
+    best = min(active, key=lambda x: x.current_price, default=None)
+    discounts = [float(x.current_discount_pct) for x in active if x.current_discount_pct]
+    seen_prices = [float(s.price) for x in active for s in x.price_snapshots]
+    seen_prices += [float(x.current_price) for x in active]
 
     return ProductSummaryOut(
         id=product.id,
         canonical_title=product.canonical_title,
         image_url=product.image_url,
-        best_price=best_price,
-        best_store=best_store,
-        max_discount_pct=max_discount_pct,
+        brand=product.brand,
+        category=product.category,
+        best_price=float(best.current_price) if best else None,
+        best_original_price=float(best.current_original_price) if best and best.current_original_price else None,
+        best_discount_pct=float(best.current_discount_pct) if best and best.current_discount_pct else None,
+        best_store=best.store.name if best else None,
+        best_url=best.url if best else None,
+        max_discount_pct=max(discounts, default=None),
+        store_count=len(active),
+        lowest_price=min(seen_prices, default=None),
+    )
+
+
+def _price_when_added(favorite: Favorite) -> float | None:
+    # Snapshots are only stored when a price changes, so the price at a given
+    # moment is the last snapshot taken before it.
+    added_at = ensure_aware(favorite.created_at)
+    prices = []
+    for listing in favorite.product.listings:
+        before = [s for s in listing.price_snapshots if ensure_aware(s.scraped_at) <= added_at]
+        if before:
+            prices.append(float(max(before, key=lambda s: ensure_aware(s.scraped_at)).price))
+    return min(prices, default=None)
+
+
+def _favorite_out(favorite: Favorite) -> FavoriteOut:
+    return FavoriteOut(
+        id=favorite.id,
+        product=_product_summary(favorite.product),
+        target_price=favorite.target_price,
+        created_at=favorite.created_at,
+        price_when_added=_price_when_added(favorite),
     )
 
 
 @router.get("/favorites", response_model=list[FavoriteOut])
 def list_favorites(subscriber_id: int, db: Session = Depends(get_db)):
-    favorites = db.query(Favorite).filter(Favorite.subscriber_id == subscriber_id).all()
-    return [
-        FavoriteOut(id=f.id, product=_product_summary(f.product), target_price=f.target_price)
-        for f in favorites
-    ]
+    favorites = (
+        db.query(Favorite)
+        .filter(Favorite.subscriber_id == subscriber_id)
+        .order_by(Favorite.created_at.desc())
+        .all()
+    )
+    return [_favorite_out(f) for f in favorites]
 
 
 @router.post("/favorites", response_model=FavoriteOut, status_code=201)
@@ -72,7 +96,18 @@ def create_favorite(subscriber_id: int, payload: FavoriteCreate, db: Session = D
         db.rollback()
         raise HTTPException(status_code=409, detail="Product already favorited")
     db.refresh(favorite)
-    return FavoriteOut(id=favorite.id, product=_product_summary(favorite.product), target_price=favorite.target_price)
+    return _favorite_out(favorite)
+
+
+@router.patch("/favorites/{favorite_id}", response_model=FavoriteOut)
+def update_favorite(favorite_id: int, subscriber_id: int, payload: FavoriteUpdate, db: Session = Depends(get_db)):
+    favorite = db.get(Favorite, favorite_id)
+    if favorite is None or favorite.subscriber_id != subscriber_id:
+        raise HTTPException(status_code=404, detail="Favorite not found")
+    favorite.target_price = payload.target_price
+    db.commit()
+    db.refresh(favorite)
+    return _favorite_out(favorite)
 
 
 @router.delete("/favorites/{favorite_id}", status_code=204)

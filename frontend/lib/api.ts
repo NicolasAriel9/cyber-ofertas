@@ -115,15 +115,30 @@ export interface ProductSummary {
   id: number;
   canonical_title: string;
   image_url: string | null;
+  brand: string | null;
+  category: Category | null;
   best_price: number | null;
+  best_original_price: number | null;
+  best_discount_pct: number | null;
   best_store: string | null;
+  best_url: string | null;
   max_discount_pct: number | null;
+  store_count: number;
+  lowest_price: number | null;
 }
 
 export interface Favorite {
   id: number;
   product: ProductSummary;
   target_price: number | null;
+  created_at: string | null;
+  price_when_added: number | null;
+}
+
+export interface CategoryHighlights {
+  category: Category;
+  total: number;
+  listings: Listing[];
 }
 
 export interface Subscriber {
@@ -169,6 +184,7 @@ export const api = {
     const items = (await res.json()) as Listing[];
     return { items, total: Number(res.headers.get("X-Total-Count") ?? items.length) };
   },
+  listHighlights: () => request<CategoryHighlights[]>("/highlights"),
   getProduct: (id: number) => request<Product>(`/products/${id}`),
   getPriceHistory: (id: number, days = 30) =>
     request<PriceHistoryPoint[]>(`/products/${id}/price-history${toQuery({ days })}`),
@@ -178,6 +194,11 @@ export const api = {
     request<Favorite>(`/favorites${toQuery({ subscriber_id: subscriberId })}`, {
       method: "POST",
       body: JSON.stringify({ product_id: productId, target_price: targetPrice ?? null }),
+    }),
+  updateFavorite: (favoriteId: number, subscriberId: number, targetPrice: number | null) =>
+    request<Favorite>(`/favorites/${favoriteId}${toQuery({ subscriber_id: subscriberId })}`, {
+      method: "PATCH",
+      body: JSON.stringify({ target_price: targetPrice }),
     }),
   removeFavorite: (favoriteId: number, subscriberId: number) =>
     request<void>(`/favorites/${favoriteId}${toQuery({ subscriber_id: subscriberId })}`, {
