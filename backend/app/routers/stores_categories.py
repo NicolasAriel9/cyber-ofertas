@@ -4,7 +4,7 @@ from sqlalchemy.orm import Session
 
 from app.auth import require_auth
 from app.db import get_db
-from app.models import Category, Listing, Product, Store
+from app.models import Category, Listing, Product, Store, listing_is_live
 from app.schemas import CategoryOut, StoreOut
 from app.sections import SECTION_PATTERN, section_filter
 
@@ -14,7 +14,7 @@ router = APIRouter(dependencies=[Depends(require_auth)], tags=["catalog"])
 @router.get("/stores", response_model=list[StoreOut])
 def list_stores(section: str | None = Query(None, pattern=SECTION_PATTERN), db: Session = Depends(get_db)):
     # ~200 brand stores are tracked; only offer the ones with something on sale.
-    conditions = [Listing.store_id == Store.id, Listing.is_active.is_(True)]
+    conditions = [Listing.store_id == Store.id, listing_is_live()]
     if (where := section_filter(section)) is not None:
         conditions.append(where)
     has_offers = select(Listing.id).join(Product, Listing.product_id == Product.id).where(*conditions).exists()
@@ -28,7 +28,7 @@ def list_categories(section: str | None = Query(None, pattern=SECTION_PATTERN), 
     has_offers = (
         select(Listing.id)
         .join(Product, Listing.product_id == Product.id)
-        .where(Product.category_id == Category.id, Listing.is_active.is_(True))
+        .where(Product.category_id == Category.id, listing_is_live())
         .exists()
     )
     query = db.query(Category).filter(has_offers)

@@ -10,7 +10,7 @@ import re
 from sqlalchemy import func, or_
 from sqlalchemy.orm import Session
 
-from app.models import Listing, Product, Store
+from app.models import Listing, Product, Store, listing_is_live
 
 MAX_RESULTS = 8
 DEFAULT_LIMIT = 5
@@ -190,7 +190,7 @@ def search_products(
     sort: str = "discount",
     limit: int = DEFAULT_LIMIT,
 ) -> list[dict]:
-    query = db.query(Listing).join(Product).filter(Listing.is_active.is_(True))
+    query = db.query(Listing).join(Product).filter(listing_is_live())
 
     for token in keyword_tokens or []:
         # Tolerate simple Spanish plurals (notebooks -> notebook) by accepting

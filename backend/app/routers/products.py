@@ -24,7 +24,7 @@ def get_product(product_id: int, db: Session = Depends(get_db)):
         category=product.category,
         brand=product.brand,
         image_url=product.image_url,
-        listings=[_to_listing_out(listing) for listing in product.listings if listing.is_active],
+        listings=[_to_listing_out(listing) for listing in product.listings if listing.is_live],
     )
 
 

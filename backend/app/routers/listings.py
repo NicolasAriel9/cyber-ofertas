@@ -7,7 +7,7 @@ from sqlalchemy.orm import Session, contains_eager, joinedload
 
 from app.auth import require_auth
 from app.db import get_db
-from app.models import Category, Listing, Product, Store
+from app.models import Category, Listing, Product, Store, listing_is_live
 from app.schemas import CategoryHighlightsOut, ListingOut
 from app.sections import SECTION_PATTERN, TRAVEL_CATEGORY_SLUGS, section_filter
 
@@ -73,7 +73,7 @@ def list_listings(
         db.query(Listing)
         .join(Listing.product)
         .options(joinedload(Listing.store), contains_eager(Listing.product).joinedload(Product.category))
-        .filter(Listing.is_active.is_(True))
+        .filter(listing_is_live())
     )
 
     if (where := section_filter(section)) is not None:
@@ -156,7 +156,7 @@ def list_highlights(
         else (Listing.current_discount_pct.desc(), Listing.id)
     )
     rank = func.row_number().over(partition_by=Product.category_id, order_by=order).label("rank")
-    conditions = [Listing.is_active.is_(True), Product.category_id.is_not(None), section_filter(section)]
+    conditions = [listing_is_live(), Product.category_id.is_not(None), section_filter(section)]
     if not travel:
         conditions += [
             Listing.current_discount_pct.between(HIGHLIGHT_MIN_DISCOUNT, HIGHLIGHT_MAX_DISCOUNT),
@@ -180,7 +180,7 @@ def list_highlights(
     totals = dict(
         db.query(Product.category_id, func.count(Listing.id))
         .join(Listing.product)
-        .filter(Listing.is_active.is_(True))
+        .filter(listing_is_live())
         .group_by(Product.category_id)
         .all()
     )
