@@ -14,7 +14,7 @@ unless FORCE_SCRAPE=1. Limit to some stores with SCRAPE_STORES=falabella,paris
 
 SCRAPE_MODE=quick only reads the first QUICK_PAGES pages of each department
 (where stores surface new and featured deals) and never deactivates listings,
-since it doesn't see the whole catalog. It's meant to run every ~10 minutes
+since it doesn't see the whole catalog. It's meant to run every ~5 minutes
 between full sweeps.
 """
 
@@ -130,6 +130,9 @@ def upsert_offer(
             listing.product.image_url = offer.image_url
     if offer.details != (listing.raw_attributes or {}).get("details"):
         listing.raw_attributes = {**(listing.raw_attributes or {}), "details": offer.details}
+    if offer.rating is not None:
+        listing.rating = offer.rating
+        listing.review_count = offer.review_count
 
     discount_pct = None
     if offer.original_price and offer.original_price > 0:

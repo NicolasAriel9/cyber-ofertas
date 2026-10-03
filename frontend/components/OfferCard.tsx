@@ -1,6 +1,6 @@
 "use client";
 
-import { ExternalLink, Heart, Trophy } from "lucide-react";
+import { ExternalLink, Heart, Sparkles, Star, Trophy } from "lucide-react";
 import Link from "next/link";
 import { Listing } from "@/lib/api";
 import { categoryStyle } from "@/lib/categories";
@@ -21,6 +21,27 @@ export function DiscountBadge({ pct, className }: { pct: number; className?: str
     >
       -{pct.toFixed(0)}%
     </span>
+  );
+}
+
+/** Offers the scraper first saw this recently get a "Nueva" badge. */
+const NEW_FOR_MS = 60 * 60 * 1000;
+
+function isNew(firstSeenAt: string | null): boolean {
+  return firstSeenAt !== null && Date.now() - new Date(firstSeenAt).getTime() < NEW_FOR_MS;
+}
+
+/** "★ 4,6 (296)": the stores' own customer rating. */
+export function Rating({ rating, reviews }: { rating: number; reviews: number | null }) {
+  return (
+    <p
+      className="flex items-center gap-1 text-xs text-muted"
+      title={reviews ? `${rating} de 5 según ${reviews.toLocaleString("es-CL")} opiniones` : `${rating} de 5`}
+    >
+      <Star size={13} className="fill-amber-400 text-amber-400" />
+      <span className="font-semibold text-foreground">{rating.toLocaleString("es-CL", { minimumFractionDigits: 1 })}</span>
+      {reviews ? <span>({reviews.toLocaleString("es-CL")})</span> : null}
+    </p>
   );
 }
 
@@ -50,8 +71,14 @@ export function OfferCard({ listing, rank }: { listing: Listing; rank?: number }
             listing.details ? "object-cover" : "object-contain p-3"
           )}
         />
-        <div className="absolute left-2.5 top-2.5 flex items-center gap-1.5">
+        {/* right-14 keeps the badges clear of the favorite button; they wrap on narrow cards. */}
+        <div className="absolute left-2.5 right-14 top-2.5 flex flex-wrap items-center gap-1.5">
           {listing.latest_discount_pct ? <DiscountBadge pct={listing.latest_discount_pct} /> : null}
+          {isNew(listing.first_seen_at) && (
+            <span className="inline-flex items-center gap-1 rounded-lg bg-emerald-500 px-1.5 py-1 text-xs font-bold leading-none text-white shadow-md">
+              <Sparkles size={12} /> Nueva
+            </span>
+          )}
           {rank === 1 && (
             <span className="inline-flex items-center gap-1 rounded-lg bg-amber-400 px-1.5 py-1 text-xs font-bold leading-none text-amber-950 shadow-md">
               <Trophy size={12} /> Top
@@ -81,6 +108,7 @@ export function OfferCard({ listing, rank }: { listing: Listing; rank?: number }
           {listing.title}
         </Link>
         {listing.details && <p className="text-xs text-muted">{listing.details}</p>}
+        {listing.rating ? <Rating rating={listing.rating} reviews={listing.review_count} /> : null}
 
         <div className="mt-auto pt-2">
           {listing.latest_original_price && (

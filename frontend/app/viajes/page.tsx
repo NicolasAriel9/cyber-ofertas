@@ -13,7 +13,7 @@ const TRAVEL: SectionConfig = {
   ),
   title: "Vuelos, paquetes y hoteles en oferta",
   describe: (offers, stores) =>
-    `${offers.toLocaleString("es-CL")} ofertas de ${stores} sitios de viaje, actualizadas cada 10 minutos`,
+    `${offers.toLocaleString("es-CL")} ofertas de ${stores} sitios de viaje, actualizadas cada 5 minutos`,
   fallbackDescription: "Tarifas de aerolíneas y agencias de viaje de Chile",
   heroClassName: "bg-gradient-to-br from-sky-500 via-cyan-600 to-indigo-700",
   searchPlaceholder: "¿A dónde quieres ir? Ej: Buenos Aires, Punta Cana...",

@@ -2,7 +2,7 @@ import math
 import time
 
 from fastapi import APIRouter, Depends, Query, Response
-from sqlalchemy import func, or_, select
+from sqlalchemy import and_, case, func, or_, select
 from sqlalchemy.orm import Session, contains_eager, joinedload
 
 from app.auth import require_auth
@@ -27,14 +27,32 @@ def _to_listing_out(listing: Listing) -> ListingOut:
         latest_discount_pct=float(listing.current_discount_pct) if listing.current_discount_pct else None,
         details=(listing.raw_attributes or {}).get("details"),
         category_slug=listing.product.category.slug if listing.product.category else None,
+        rating=listing.rating,
+        review_count=listing.review_count,
+        first_seen_at=listing.first_seen_at,
     )
 
+
+MIN_REVIEWS = 3
 
 SORTS = {
     "discount": (Listing.current_discount_pct.desc().nulls_last(), Listing.id),
     "price_asc": (Listing.current_price.asc().nulls_last(), Listing.id),
     "price_desc": (Listing.current_price.desc().nulls_last(), Listing.id),
     "recent": (Listing.first_seen_at.desc(), Listing.id.desc()),
+    # A 5-star product with one review shouldn't outrank a 4.8 with hundreds:
+    # ratings backed by fewer than MIN_REVIEWS reviews go after the rest.
+    # Mercado Libre doesn't publish the count, so its ratings count as backed.
+    "rating": (
+        case(
+            (and_(Listing.rating.is_not(None), func.coalesce(Listing.review_count, MIN_REVIEWS) >= MIN_REVIEWS), 0),
+            else_=1,
+        ),
+        Listing.rating.desc().nulls_last(),
+        Listing.review_count.desc().nulls_last(),
+        Listing.current_discount_pct.desc().nulls_last(),
+        Listing.id,
+    ),
 }
 
 
@@ -45,7 +63,7 @@ def list_listings(
     search: str | None = None,
     min_discount: float | None = None,
     section: str | None = Query(None, pattern=SECTION_PATTERN),
-    sort: str = Query("discount", pattern="^(discount|price_asc|price_desc|recent)$"),
+    sort: str = Query("discount", pattern="^(discount|price_asc|price_desc|recent|rating)$"),
     page: int = Query(1, ge=1),
     page_size: int = Query(30, ge=1, le=100),
     response: Response = None,
@@ -108,9 +126,9 @@ def _pick_varied(listings: list[Listing], count: int) -> list[Listing]:
     return picked
 
 
-# The scraper writes every ~10 min; recomputing highlights on every page load
-# would scan all active listings for nothing.
-HIGHLIGHTS_TTL_SECONDS = 300
+# The scraper writes every ~5 min and the page polls every minute; recomputing
+# highlights on every request would scan all active listings for nothing.
+HIGHLIGHTS_TTL_SECONDS = 60
 _highlights_cache: dict[tuple[str, int], tuple[float, list[CategoryHighlightsOut]]] = {}
 
 

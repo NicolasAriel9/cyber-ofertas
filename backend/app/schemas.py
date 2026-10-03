@@ -32,6 +32,9 @@ class ListingOut(BaseModel):
     # Travel offers: dates, nights, what the price covers ("Solo ida · 22 oct").
     details: str | None = None
     category_slug: str | None = None
+    rating: float | None = None
+    review_count: int | None = None
+    first_seen_at: datetime | None = None
 
 
 class ProductOut(BaseModel):

@@ -11,7 +11,7 @@ from urllib.parse import urljoin
 
 from app.scraper.http import PoliteClient
 from app.scraper.parser import ScrapedOffer
-from app.scraper.stores.base import Department, StoreScraper, parse_clp
+from app.scraper.stores.base import Department, StoreScraper, parse_clp, parse_rating
 
 BASE_URL = "https://www.hites.com"
 PAGE_SIZE = 48
@@ -22,9 +22,30 @@ GTM_RE = re.compile(r'data-gtmselectitem="([^"]+)"')
 HREF_RE = re.compile(r'<a class="link product-name[^"]*" href="([^"]+)"|<a class="image-item[^"]*" href="([^"]+)"')
 # Fashion tiles put a data-gtm attribute between class and src.
 IMG_RE = re.compile(r'<img class="img-fluid w-100 tile-image js-image1"[^>]*?\ssrc="([^"]+)"', re.S)
+# The tiles have no rating; the page's schema.org ItemList does, per SKU.
+LD_JSON_RE = re.compile(r'<script type="application/ld\+json">(.*?)</script>', re.S)
 
 
-def parse_hites_tile(tile_html: str, category_slug: str) -> ScrapedOffer | None:
+def parse_hites_ratings(page_html: str) -> dict[str, tuple[float | None, int | None]]:
+    ratings = {}
+    for block in LD_JSON_RE.findall(page_html):
+        try:
+            data = json.loads(block)
+        except json.JSONDecodeError:
+            continue
+        if not isinstance(data, dict) or data.get("@type") != "ItemList":
+            continue
+        for element in data.get("itemListElement") or []:
+            product = element.get("item") or {}
+            aggregate = product.get("aggregateRating") or {}
+            if product.get("sku") and aggregate:
+                ratings[str(product["sku"])] = parse_rating(aggregate.get("ratingValue"), aggregate.get("reviewCount"))
+    return ratings
+
+
+def parse_hites_tile(
+    tile_html: str, category_slug: str, ratings: dict[str, tuple[float | None, int | None]] | None = None
+) -> ScrapedOffer | None:
     gtm = GTM_RE.search(tile_html)
     if not gtm:
         return None
@@ -36,6 +57,7 @@ def parse_hites_tile(tile_html: str, category_slug: str) -> ScrapedOffer | None:
         return None
     discount = parse_clp(item.get("discount")) or 0
     image = IMG_RE.search(tile_html)
+    rating, review_count = (ratings or {}).get(str(item["item_id"]), (None, None))
     return ScrapedOffer(
         store_slug="hites",
         store_name="Hites",
@@ -47,6 +69,8 @@ def parse_hites_tile(tile_html: str, category_slug: str) -> ScrapedOffer | None:
         original_price=price + discount if discount > 0 else None,
         image_url=html.unescape(image.group(1)) if image else None,
         brand=item.get("item_brand"),
+        rating=rating,
+        review_count=review_count,
     )
 
 
@@ -78,7 +102,10 @@ class HitesScraper(StoreScraper):
             f"{BASE_URL}/{department.ref}/", params={"start": (page - 1) * PAGE_SIZE, "sz": PAGE_SIZE}
         )
         tiles = response.text.split(TILE_SPLIT)[1:]
+        ratings = parse_hites_ratings(response.text)
         offers = [
-            offer for tile_html in tiles if (offer := parse_hites_tile(tile_html, department.category_slug))
+            offer
+            for tile_html in tiles
+            if (offer := parse_hites_tile(tile_html, department.category_slug, ratings))
         ]
         return offers, len(tiles) >= PAGE_SIZE

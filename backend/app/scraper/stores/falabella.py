@@ -9,7 +9,7 @@ import re
 
 from app.scraper.http import PoliteClient
 from app.scraper.parser import ScrapedOffer
-from app.scraper.stores.base import Department, StoreScraper, parse_clp
+from app.scraper.stores.base import Department, StoreScraper, parse_clp, parse_rating
 
 NEXT_DATA_RE = re.compile(r'<script id="__NEXT_DATA__" type="application/json">(.*?)</script>', re.S)
 DISCOUNT_FACET = {"f.range.derived.variant.discount": "20% dcto y más"}
@@ -27,6 +27,7 @@ def parse_falabella_item(item: dict, store_slug: str, store_name: str, category_
         return None
 
     media = item.get("mediaUrls") or []
+    rating, review_count = parse_rating(item.get("rating"), item.get("totalReviews"))
     return ScrapedOffer(
         store_slug=store_slug,
         store_name=store_name,
@@ -38,6 +39,8 @@ def parse_falabella_item(item: dict, store_slug: str, store_name: str, category_
         original_price=parse_clp(original["price"][0]) if original else None,
         image_url=media[0] if media else None,
         brand=item.get("brand"),
+        rating=rating,
+        review_count=review_count,
     )
 
 

@@ -16,6 +16,9 @@ const HIGHLIGHTS_INITIAL = 6;
 // Where the user was when they opened a product, so "back" lands there again.
 const SCROLL_MAX_AGE_MS = 30 * 60 * 1000;
 
+// The scraper runs every 5 minutes; checking every minute shows its results soon after.
+const REFRESH_MS = 60 * 1000;
+
 interface SavedScroll {
   query: string;
   y: number;
@@ -97,7 +100,11 @@ function Listings({ config }: { config: SectionConfig }) {
 
   const categoriesQuery = useQuery({ queryKey: ["categories", section], queryFn: () => api.listCategories(section) });
   const storesQuery = useQuery({ queryKey: ["stores", section], queryFn: () => api.listStores(section) });
-  const highlightsQuery = useQuery({ queryKey: ["highlights", section], queryFn: () => api.listHighlights(section) });
+  const highlightsQuery = useQuery({
+    queryKey: ["highlights", section],
+    queryFn: () => api.listHighlights(section),
+    refetchInterval: REFRESH_MS,
+  });
   // Brand-owned stores (slug "marca-...") are listed after the big retailers.
   const allStores = storesQuery.data ?? [];
   const storeGroups: [string, typeof allStores][] = config.groupStores
@@ -111,6 +118,8 @@ function Listings({ config }: { config: SectionConfig }) {
     gcTime: 30 * 60 * 1000,
     queryKey: ["listings", filters],
     queryFn: ({ pageParam }) => api.listListings({ ...filters, page: pageParam }),
+    // New offers show up without reloading (paused while the tab is hidden).
+    refetchInterval: REFRESH_MS,
     initialPageParam: 1,
     getNextPageParam: (last, pages) =>
       pages.reduce((n, p) => n + p.items.length, 0) < last.total ? pages.length + 1 : undefined,
@@ -275,8 +284,15 @@ function Listings({ config }: { config: SectionConfig }) {
             <h2 className="text-xl font-bold tracking-tight sm:text-2xl">
               {activeCategory ? activeCategory.name : filters.search ? `Resultados para "${filters.search}"` : "Todas las ofertas"}
             </h2>
-            <p className="mt-0.5 text-sm text-muted">
+            <p className="mt-0.5 flex items-center gap-2 text-sm text-muted">
               {total !== undefined ? `${total.toLocaleString("es-CL")} ofertas` : "Buscando ofertas..."}
+              <span className="inline-flex items-center gap-1.5 text-xs" title="La lista se actualiza sola cada minuto">
+                <span className="relative flex h-2 w-2">
+                  <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-400 opacity-75" />
+                  <span className="relative inline-flex h-2 w-2 rounded-full bg-emerald-500" />
+                </span>
+                En vivo
+              </span>
             </p>
           </div>
           <div className="flex flex-wrap items-center gap-2">
@@ -312,6 +328,7 @@ function Listings({ config }: { config: SectionConfig }) {
               <option value="price_asc">Precio: menor a mayor</option>
               <option value="price_desc">Precio: mayor a menor</option>
               <option value="recent">Recién llegadas</option>
+              {section === "productos" && <option value="rating">Mejor valoradas</option>}
             </Select>
           </div>
         </div>

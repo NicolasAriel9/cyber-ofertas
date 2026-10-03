@@ -17,6 +17,7 @@ import { api, getSubscriberId } from "@/lib/api";
 import { formatCLP } from "@/lib/format";
 import { Badge, Button, Card, EmptyState, Input, Skeleton } from "@/components/ui";
 import { ProductThumb } from "@/components/ProductThumb";
+import { Rating } from "@/components/OfferCard";
 
 export default function ProductPage() {
   return (
@@ -131,6 +132,7 @@ function ProductDetail() {
             <div className="flex items-center gap-2">
               <span className="font-medium">{listing.store.name}</span>
               {i === 0 && <Badge variant="success">Mejor precio</Badge>}
+              {listing.rating ? <Rating rating={listing.rating} reviews={listing.review_count} /> : null}
             </div>
             <div className="flex items-center gap-2">
               <span className="font-bold">{listing.latest_price ? formatCLP(listing.latest_price) : "-"}</span>
