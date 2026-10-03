@@ -1,4 +1,4 @@
-import { ImageOff } from "lucide-react";
+import { ImageOff, LucideIcon } from "lucide-react";
 import { cn } from "@/lib/cn";
 
 const PALETTES = [
@@ -19,11 +19,14 @@ export function ProductThumb({
   src,
   seed,
   label,
+  icon: Icon,
   className,
 }: {
   src?: string | null;
   seed: string;
   label?: string;
+  /** Shown instead of the label's initial when there's no image (e.g. a plane for flights). */
+  icon?: LucideIcon;
   className?: string;
 }) {
   if (src) {
@@ -39,7 +42,9 @@ export function ProductThumb({
         className
       )}
     >
-      {label ? (
+      {Icon ? (
+        <Icon size={40} strokeWidth={1.5} />
+      ) : label ? (
         <span className="text-lg font-bold tracking-tight">{label.charAt(0).toUpperCase()}</span>
       ) : (
         <ImageOff size={18} strokeWidth={1.5} />

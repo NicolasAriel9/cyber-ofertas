@@ -39,7 +39,7 @@ def test_highlights_rank_by_savings_and_skip_bogus_discounts(db_session):
     # Same TV in another store: must not show up twice.
     _listing(db_session, hites, tech, "Smart TV 55 Hites", 310_000, 750_000, product=tv.product)
 
-    [highlight] = listings_router.list_highlights(per_category=3, db=db_session)
+    [highlight] = listings_router.list_highlights(per_category=3, section="productos", db=db_session)
 
     assert highlight.category.slug == "tecnologia"
     assert highlight.total == 5

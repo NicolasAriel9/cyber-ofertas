@@ -68,6 +68,10 @@ class PoliteClient:
     def get_json(self, url: str, params: dict | None = None, headers: dict | None = None):
         return self.get(url, params=params, headers=headers).json()
 
+    def clear_cookies(self) -> None:
+        """Start over as a new visitor (e.g. to get re-assigned an A/B variant)."""
+        self._client.cookies.clear()
+
     def close(self) -> None:
         self._client.close()
 

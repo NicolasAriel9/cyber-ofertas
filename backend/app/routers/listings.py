@@ -3,12 +3,13 @@ import time
 
 from fastapi import APIRouter, Depends, Query, Response
 from sqlalchemy import func, or_, select
-from sqlalchemy.orm import Session, joinedload
+from sqlalchemy.orm import Session, contains_eager, joinedload
 
 from app.auth import require_auth
 from app.db import get_db
 from app.models import Category, Listing, Product, Store
 from app.schemas import CategoryHighlightsOut, ListingOut
+from app.sections import SECTION_PATTERN, TRAVEL_CATEGORY_SLUGS, section_filter
 
 router = APIRouter(dependencies=[Depends(require_auth)], tags=["listings"])
 
@@ -24,6 +25,8 @@ def _to_listing_out(listing: Listing) -> ListingOut:
         latest_price=float(listing.current_price) if listing.current_price is not None else None,
         latest_original_price=float(listing.current_original_price) if listing.current_original_price else None,
         latest_discount_pct=float(listing.current_discount_pct) if listing.current_discount_pct else None,
+        details=(listing.raw_attributes or {}).get("details"),
+        category_slug=listing.product.category.slug if listing.product.category else None,
     )
 
 
@@ -41,6 +44,7 @@ def list_listings(
     store: str | None = None,
     search: str | None = None,
     min_discount: float | None = None,
+    section: str | None = Query(None, pattern=SECTION_PATTERN),
     sort: str = Query("discount", pattern="^(discount|price_asc|price_desc|recent)$"),
     page: int = Query(1, ge=1),
     page_size: int = Query(30, ge=1, le=100),
@@ -50,10 +54,12 @@ def list_listings(
     query = (
         db.query(Listing)
         .join(Listing.product)
-        .options(joinedload(Listing.store))
+        .options(joinedload(Listing.store), contains_eager(Listing.product).joinedload(Product.category))
         .filter(Listing.is_active.is_(True))
     )
 
+    if (where := section_filter(section)) is not None:
+        query = query.filter(where)
     if store:
         query = query.join(Store).filter(Store.slug == store)
     if category:
@@ -105,32 +111,42 @@ def _pick_varied(listings: list[Listing], count: int) -> list[Listing]:
 # The scraper writes every ~10 min; recomputing highlights on every page load
 # would scan all active listings for nothing.
 HIGHLIGHTS_TTL_SECONDS = 300
-_highlights_cache: dict[int, tuple[float, list[CategoryHighlightsOut]]] = {}
+_highlights_cache: dict[tuple[str, int], tuple[float, list[CategoryHighlightsOut]]] = {}
+
+
+def _travel_sort_key(listing: Listing) -> tuple[float, float]:
+    # Fares usually come as "desde $X" with no crossed-out price: the best deal
+    # is the cheapest. Real discounts (during the event) still go first.
+    return (-float(listing.current_discount_pct or 0), float(listing.current_price))
 
 
 @router.get("/highlights", response_model=list[CategoryHighlightsOut])
-def list_highlights(per_category: int = Query(3, ge=1, le=10), db: Session = Depends(get_db)):
-    """Best few offers of every category, for the top of the home page."""
-    cached = _highlights_cache.get(per_category)
+def list_highlights(
+    per_category: int = Query(3, ge=1, le=10),
+    section: str = Query("productos", pattern=SECTION_PATTERN),
+    db: Session = Depends(get_db),
+):
+    """Best few offers of every category of a section, for the top of its page."""
+    cached = _highlights_cache.get((section, per_category))
     if cached and time.monotonic() - cached[0] < HIGHLIGHTS_TTL_SECONDS:
         return cached[1]
 
-    rank = (
-        func.row_number()
-        .over(partition_by=Product.category_id, order_by=(Listing.current_discount_pct.desc(), Listing.id))
-        .label("rank")
+    travel = section == "viajes"
+    order = (
+        (Listing.current_discount_pct.desc().nulls_last(), Listing.current_price, Listing.id)
+        if travel
+        else (Listing.current_discount_pct.desc(), Listing.id)
     )
-    candidates = (
-        select(Listing.id.label("listing_id"), rank)
-        .join(Listing.product)
-        .where(
-            Listing.is_active.is_(True),
-            Product.category_id.is_not(None),
+    rank = func.row_number().over(partition_by=Product.category_id, order_by=order).label("rank")
+    conditions = [Listing.is_active.is_(True), Product.category_id.is_not(None), section_filter(section)]
+    if not travel:
+        conditions += [
             Listing.current_discount_pct.between(HIGHLIGHT_MIN_DISCOUNT, HIGHLIGHT_MAX_DISCOUNT),
             Listing.current_original_price - Listing.current_price >= HIGHLIGHT_MIN_SAVINGS,
-        )
-        .subquery()
-    )
+        ]
+    else:
+        conditions.append(Listing.current_price.is_not(None))
+    candidates = select(Listing.id.label("listing_id"), rank).join(Listing.product).where(*conditions).subquery()
     listings = (
         db.query(Listing)
         .join(candidates, candidates.c.listing_id == Listing.id)
@@ -153,7 +169,10 @@ def list_highlights(per_category: int = Query(3, ge=1, le=10), db: Session = Dep
 
     highlights = []
     for category_listings in by_category.values():
-        category_listings.sort(key=_highlight_score, reverse=True)
+        if travel:
+            category_listings.sort(key=_travel_sort_key)
+        else:
+            category_listings.sort(key=_highlight_score, reverse=True)
         best = _pick_varied(category_listings, per_category)
         category = category_listings[0].product.category
         highlights.append(
@@ -163,9 +182,12 @@ def list_highlights(per_category: int = Query(3, ge=1, le=10), db: Session = Dep
                 listings=[_to_listing_out(listing) for listing in best],
             )
         )
-    # Biggest categories first: that's where most of the action is.
-    highlights.sort(key=lambda h: h.total, reverse=True)
-    _highlights_cache[per_category] = (time.monotonic(), highlights)
+    if travel:
+        highlights.sort(key=lambda h: TRAVEL_CATEGORY_SLUGS.index(h.category.slug))
+    else:
+        # Biggest categories first: that's where most of the action is.
+        highlights.sort(key=lambda h: h.total, reverse=True)
+    _highlights_cache[(section, per_category)] = (time.monotonic(), highlights)
     return highlights
 
 

@@ -100,7 +100,13 @@ export interface Listing {
   latest_price: number | null;
   latest_original_price: number | null;
   latest_discount_pct: number | null;
+  /** Travel offers: dates, nights, what the price covers. */
+  details: string | null;
+  category_slug: string | null;
 }
+
+/** Retail offers ("/") or travel deals ("/viajes"). */
+export type Section = "productos" | "viajes";
 
 export interface Product {
   id: number;
@@ -160,6 +166,7 @@ export interface TelegramLinkCode {
 }
 
 export interface ListingFilters {
+  section?: Section;
   category?: string;
   store?: string;
   search?: string;
@@ -176,15 +183,15 @@ function toQuery(params: object): string {
 }
 
 export const api = {
-  listStores: () => request<Store[]>("/stores"),
-  listCategories: () => request<Category[]>("/categories"),
+  listStores: (section?: Section) => request<Store[]>(`/stores${toQuery({ section })}`),
+  listCategories: (section?: Section) => request<Category[]>(`/categories${toQuery({ section })}`),
   listSubscribers: () => request<Subscriber[]>("/subscribers"),
   listListings: async (filters: ListingFilters): Promise<ListingsPage> => {
     const res = await rawRequest(`/listings${toQuery(filters)}`);
     const items = (await res.json()) as Listing[];
     return { items, total: Number(res.headers.get("X-Total-Count") ?? items.length) };
   },
-  listHighlights: () => request<CategoryHighlights[]>("/highlights"),
+  listHighlights: (section: Section) => request<CategoryHighlights[]>(`/highlights${toQuery({ section })}`),
   getProduct: (id: number) => request<Product>(`/products/${id}`),
   getPriceHistory: (id: number, days = 30) =>
     request<PriceHistoryPoint[]>(`/products/${id}/price-history${toQuery({ days })}`),

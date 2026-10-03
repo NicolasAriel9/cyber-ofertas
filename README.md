@@ -58,7 +58,10 @@ Step 1 (the scraper) is done; the rest needs accounts only you can create.
    Levi's, New Balance, Sony...) read through their platform's public catalog
    (Shopify, VTEX or Magento, see `stores/brand_sites.py`). The brand list is
    generated from cyber.cl -- refresh it before each event with
-   `python scripts/discover_brand_sites.py`. Run it locally with:
+   `python scripts/discover_brand_sites.py`. The **Cyber Viajes** page
+   (`/viajes`) gets flights, packages and hotels from JetSMART and Cocha
+   (`stores/travel.py`); LATAM, Despegar/Viajes Falabella, Iberia and
+   Turismocity block automated requests. Run it locally with:
    ```
    cd backend
    set FORCE_SCRAPE=1

@@ -29,6 +29,9 @@ class ListingOut(BaseModel):
     latest_price: float | None
     latest_original_price: float | None
     latest_discount_pct: float | None
+    # Travel offers: dates, nights, what the price covers ("Solo ida · 22 oct").
+    details: str | None = None
+    category_slug: str | None = None
 
 
 class ProductOut(BaseModel):
