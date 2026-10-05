@@ -26,7 +26,6 @@ def _listing(db, store, category, title, price, original, product=None):
 
 
 def test_highlights_rank_by_savings_and_skip_bogus_discounts(db_session):
-    listings_router._highlights_cache.clear()
     tech = Category(name="Tecnología", slug="tecnologia")
     paris, ripley, hites = (Store(name=n, slug=n.lower()) for n in ("Paris", "Ripley", "Hites"))
     db_session.add_all([tech, paris, ripley, hites])
