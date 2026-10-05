@@ -56,6 +56,11 @@ def test_cyber_filter_keeps_drops_and_new_offers(db_session, monkeypatch):
     same = _listing(db_session, paris, tech, "Mismo precio", 300_000, 600_000)
     same.pre_event_price, same.first_seen_at = 300_000, before
     _listing(db_session, paris, tech, "Nueva en el Cyber", 100_000, 200_000).first_seen_at = START + timedelta(hours=1)
+    # A store we only started reading after the start: its offers aren't "new".
+    hites = Store(name="Hites", slug="hites")
+    db_session.add(hites)
+    db_session.flush()
+    _listing(db_session, hites, tech, "Recién leída", 100_000, 200_000).first_seen_at = START + timedelta(hours=1)
     db_session.flush()
 
     assert sorted(_titles(db_session, cyber=True)) == ["Bajó en el Cyber", "Nueva en el Cyber"]
