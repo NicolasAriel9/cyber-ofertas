@@ -1,6 +1,6 @@
 "use client";
 
-import { ExternalLink, Heart, Sparkles, Star, Trophy } from "lucide-react";
+import { ExternalLink, Flame, Heart, Sparkles, Star, Trophy } from "lucide-react";
 import Link from "next/link";
 import { Listing } from "@/lib/api";
 import { categoryStyle } from "@/lib/categories";
@@ -117,11 +117,21 @@ export function OfferCard({ listing, rank }: { listing: Listing; rank?: number }
           <p className="text-xl font-extrabold tracking-tight">
             {listing.latest_price ? formatCLP(listing.latest_price) : "-"}
           </p>
-          {savings && (
-            <p className="mt-1 inline-flex rounded-md bg-success-bg px-1.5 py-0.5 text-xs font-semibold text-success">
-              Ahorras {formatCLP(savings)}
-            </p>
-          )}
+          <div className="mt-1 flex flex-wrap gap-1">
+            {savings && (
+              <p className="inline-flex rounded-md bg-success-bg px-1.5 py-0.5 text-xs font-semibold text-success">
+                Ahorras {formatCLP(savings)}
+              </p>
+            )}
+            {listing.cyber_drop_pct ? (
+              <p
+                className="inline-flex items-center gap-0.5 rounded-md bg-orange-500/15 px-1.5 py-0.5 text-xs font-semibold text-orange-500"
+                title="Comparado con su precio justo antes de que empezara el Cyber"
+              >
+                <Flame size={11} /> Bajó {listing.cyber_drop_pct.toLocaleString("es-CL")}% en el Cyber
+              </p>
+            ) : null}
+          </div>
         </div>
 
         <a

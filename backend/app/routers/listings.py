@@ -2,16 +2,30 @@ import math
 import time
 
 from fastapi import APIRouter, Depends, Query, Response
-from sqlalchemy import and_, case, func, or_, select
+from sqlalchemy import and_, case, false, func, or_, select
 from sqlalchemy.orm import Session, contains_eager, joinedload
 
 from app.auth import require_auth
 from app.db import get_db
 from app.models import Category, Listing, Product, Store, listing_is_live
+from app.scraper.event_windows import started_event_start
 from app.schemas import CategoryHighlightsOut, ListingOut
 from app.sections import SECTION_PATTERN, TRAVEL_CATEGORY_SLUGS, section_filter
 
 router = APIRouter(dependencies=[Depends(require_auth)], tags=["listings"])
+
+
+# A drop smaller than this since the event began is rounding noise, not a deal.
+CYBER_MIN_DROP = 0.99
+
+
+def _cyber_drop_pct(listing: Listing) -> float | None:
+    if listing.pre_event_price is None or listing.current_price is None:
+        return None
+    before, now = float(listing.pre_event_price), float(listing.current_price)  # Numeric -> Decimal
+    if now > before * CYBER_MIN_DROP:
+        return None
+    return round((before - now) / before * 100, 1)
 
 
 def _to_listing_out(listing: Listing) -> ListingOut:
@@ -30,6 +44,7 @@ def _to_listing_out(listing: Listing) -> ListingOut:
         rating=listing.rating,
         review_count=listing.review_count,
         first_seen_at=listing.first_seen_at,
+        cyber_drop_pct=_cyber_drop_pct(listing),
     )
 
 
@@ -38,7 +53,19 @@ MIN_REVIEWS = 3
 WELL_RATED = and_(Listing.rating.is_not(None), func.coalesce(Listing.review_count, MIN_REVIEWS) >= MIN_REVIEWS)
 SAVINGS = Listing.current_original_price - Listing.current_price
 
+# Same idea as the highlights score (_highlight_score): the discount weighted
+# by the money it saves, with implausible discounts sent to the bottom.
+BELIEVABLE_DEAL = and_(
+    Listing.current_discount_pct.between(20, 85),
+    SAVINGS >= 5000,
+)
+
 SORTS = {
+    "top": (
+        case((BELIEVABLE_DEAL, 0), else_=1),
+        (Listing.current_discount_pct * func.ln(case((SAVINGS > 1, SAVINGS), else_=1))).desc().nulls_last(),
+        Listing.id,
+    ),
     "discount": (Listing.current_discount_pct.desc().nulls_last(), Listing.id),
     "price_asc": (Listing.current_price.asc().nulls_last(), Listing.id),
     "price_desc": (Listing.current_price.desc().nulls_last(), Listing.id),
@@ -63,11 +90,12 @@ def list_listings(
     store: str | None = None,
     search: str | None = None,
     min_discount: float | None = None,
+    cyber: bool = False,
     min_rating: float | None = None,
     min_price: float | None = None,
     max_price: float | None = None,
     section: str | None = Query(None, pattern=SECTION_PATTERN),
-    sort: str = Query("discount", pattern="^(discount|savings|price_asc|price_desc|recent|rating)$"),
+    sort: str = Query("discount", pattern="^(top|discount|savings|price_asc|price_desc|recent|rating)$"),
     page: int = Query(1, ge=1),
     page_size: int = Query(30, ge=1, le=100),
     response: Response = None,
@@ -93,6 +121,17 @@ def list_listings(
             query = query.filter(or_(Listing.title.ilike(f"%{word}%"), Product.brand.ilike(f"%{word}%")))
     if min_discount is not None:
         query = query.filter(Listing.current_discount_pct >= min_discount)
+    if cyber:
+        # Cheaper than right before the event, or first seen since it began.
+        started = started_event_start()
+        query = query.filter(
+            or_(
+                Listing.current_price <= Listing.pre_event_price * CYBER_MIN_DROP,
+                Listing.first_seen_at >= started,
+            )
+            if started
+            else false()
+        )
     if min_rating is not None:
         query = query.filter(WELL_RATED, Listing.rating >= min_rating)
     if min_price is not None:

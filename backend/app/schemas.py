@@ -35,6 +35,8 @@ class ListingOut(BaseModel):
     rating: float | None = None
     review_count: int | None = None
     first_seen_at: datetime | None = None
+    # How much the price fell since the Cyber event began (%), when it did.
+    cyber_drop_pct: float | None = None
 
 
 class ProductOut(BaseModel):

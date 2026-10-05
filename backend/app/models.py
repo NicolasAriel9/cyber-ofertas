@@ -82,6 +82,10 @@ class Listing(Base):
     current_discount_pct: Mapped[float | None] = mapped_column(Numeric(5, 2), default=None, index=True)
     rating: Mapped[float | None] = mapped_column(Float, default=None)
     review_count: Mapped[int | None] = mapped_column(Integer, default=None)
+    # The price right before the current Cyber event began, captured the first
+    # time the scraper sees the offer after the start (see upsert_offer). Lets
+    # the API tell real Cyber drops from prices that were already there.
+    pre_event_price: Mapped[float | None] = mapped_column(Numeric(12, 2), default=None)
 
     product: Mapped[Product] = relationship(back_populates="listings")
     store: Mapped[Store] = relationship(back_populates="listings")
