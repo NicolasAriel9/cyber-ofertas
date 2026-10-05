@@ -5,6 +5,7 @@ import { ArrowRight, Loader2, Sparkles, TriangleAlert } from "lucide-react";
 import { useEffect, useState } from "react";
 import {
   api,
+  checkCredentials,
   getCredentials,
   getSubscriberId,
   setCredentials,
@@ -116,31 +117,58 @@ function LoginForm({ onDone, error }: { onDone: () => void; error?: string }) {
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
   const [submitting, setSubmitting] = useState(false);
+  const [formError, setFormError] = useState(error);
 
   return (
     <AuthShell title="Cyber Ofertas" subtitle="Conecta con tu backend para continuar">
-      {error && (
+      {formError && (
         <div className="mb-4 flex items-start gap-2 rounded-xl bg-danger-bg px-3.5 py-2.5 text-sm text-danger">
           <TriangleAlert size={16} className="mt-0.5 shrink-0" />
-          <span>{error}</span>
+          <span>{formError}</span>
         </div>
       )}
       <form
         className="flex flex-col gap-3 rounded-2xl border border-border bg-surface p-5"
-        onSubmit={(e) => {
+        onSubmit={async (e) => {
           e.preventDefault();
           setSubmitting(true);
-          setCredentials({ apiBase: apiBase.replace(/\/$/, ""), username, password });
-          onDone();
+          setFormError(undefined);
+          // Phone keyboards capitalize the first letter and autocomplete can
+          // add a trailing space; neither should make the login fail.
+          const creds = { apiBase: apiBase.trim().replace(/\/$/, ""), username: username.trim(), password: password.trim() };
+          const result = await checkCredentials(creds);
+          setSubmitting(false);
+          if (result === "ok") {
+            setCredentials(creds);
+            onDone();
+          } else if (result === "wrong") {
+            setFormError("Usuario o contraseña incorrectos.");
+          } else {
+            setFormError("No se pudo conectar con el servidor. Revisa la URL del backend o intenta de nuevo en un minuto.");
+          }
         }}
       >
         <label className="flex flex-col gap-1.5">
           <span className="text-xs font-medium text-muted">URL del backend</span>
-          <Input value={apiBase} onChange={(e) => setApiBase(e.target.value)} />
+          <Input
+            value={apiBase}
+            onChange={(e) => setApiBase(e.target.value)}
+            autoCapitalize="none"
+            autoCorrect="off"
+            spellCheck={false}
+          />
         </label>
         <label className="flex flex-col gap-1.5">
           <span className="text-xs font-medium text-muted">Usuario</span>
-          <Input value={username} onChange={(e) => setUsername(e.target.value)} autoFocus />
+          <Input
+            value={username}
+            onChange={(e) => setUsername(e.target.value)}
+            autoFocus
+            autoComplete="username"
+            autoCapitalize="none"
+            autoCorrect="off"
+            spellCheck={false}
+          />
         </label>
         <label className="flex flex-col gap-1.5">
           <span className="text-xs font-medium text-muted">Contraseña</span>
@@ -148,6 +176,7 @@ function LoginForm({ onDone, error }: { onDone: () => void; error?: string }) {
             type="password"
             value={password}
             onChange={(e) => setPassword(e.target.value)}
+            autoComplete="current-password"
           />
         </label>
         <Button type="submit" className="mt-1.5 w-full" disabled={submitting}>
