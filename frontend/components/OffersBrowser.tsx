@@ -512,7 +512,7 @@ function Listings({ config }: { config: SectionConfig }) {
             }
             description={
               filters.cyber
-                ? "Aquí aparece lo que baja de precio o se publica desde las 00:00 del día del Cyber. Las tiendas se revisan cada 5 minutos."
+                ? "Aquí aparece lo que bajó de precio o se publicó desde el día antes del Cyber, cuando las tiendas empiezan a cambiar sus precios. Se revisan cada 5 minutos."
                 : isFiltered
                   ? "Prueba con otra palabra o quita algún filtro."
                   : "Es normal si el Cyber aún no comienza o el scraper no ha corrido."
