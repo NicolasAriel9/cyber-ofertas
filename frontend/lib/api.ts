@@ -18,6 +18,22 @@ export function setCredentials(creds: Credentials) {
   window.localStorage.setItem(AUTH_KEY, JSON.stringify(creds));
 }
 
+function basicAuth(creds: Credentials) {
+  return "Basic " + btoa(`${creds.username}:${creds.password}`);
+}
+
+/** Tries the credentials before saving them, so the login form can tell a
+ * wrong user/password apart from a server it can't reach. */
+export async function checkCredentials(creds: Credentials): Promise<"ok" | "wrong" | "offline"> {
+  try {
+    const res = await fetch(`${creds.apiBase}/subscribers`, { headers: { Authorization: basicAuth(creds) } });
+    if (res.ok) return "ok";
+    return res.status === 401 ? "wrong" : "offline";
+  } catch {
+    return "offline";
+  }
+}
+
 export function clearCredentials() {
   window.localStorage.removeItem(AUTH_KEY);
 }
@@ -56,7 +72,7 @@ async function rawRequest(path: string, options: RequestInit = {}): Promise<Resp
   if (!creds) throw new ApiError(401, "No credentials configured");
 
   const headers = new Headers(options.headers);
-  headers.set("Authorization", "Basic " + btoa(`${creds.username}:${creds.password}`));
+  headers.set("Authorization", basicAuth(creds));
   if (options.body) headers.set("Content-Type", "application/json");
 
   const res = await fetch(`${creds.apiBase}${path}`, { ...options, headers });

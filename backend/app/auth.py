@@ -9,7 +9,11 @@ security = HTTPBasic()
 
 
 def require_auth(credentials: HTTPBasicCredentials = Depends(security)) -> str:
-    correct_user = secrets.compare_digest(credentials.username, settings.basic_auth_user)
+    # Phones capitalize the first letter of the user ("Nico"); the user name
+    # isn't secret, so it's compared ignoring case and surrounding spaces.
+    correct_user = secrets.compare_digest(
+        credentials.username.strip().lower().encode(), settings.basic_auth_user.strip().lower().encode()
+    )
     correct_password = secrets.compare_digest(credentials.password, settings.basic_auth_password)
     if not (correct_user and correct_password):
         raise HTTPException(
