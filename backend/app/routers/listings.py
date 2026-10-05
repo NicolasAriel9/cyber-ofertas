@@ -1,11 +1,11 @@
 import math
-import time
 
 from fastapi import APIRouter, Depends, Query, Response
 from sqlalchemy import and_, case, false, func, or_, select
 from sqlalchemy.orm import Session, contains_eager, joinedload
 
 from app.auth import require_auth
+from app.cache import response_cache
 from app.db import get_db
 from app.models import Category, Listing, Product, Store, listing_is_live
 from app.scraper.event_windows import started_event_start
@@ -101,6 +101,20 @@ def list_listings(
     response: Response = None,
     db: Session = Depends(get_db),
 ):
+    key = ("listings", category, store, search, min_discount, cyber, min_rating, min_price, max_price,
+           section, sort, page, page_size)
+
+    def compute(db: Session) -> tuple[int, list[ListingOut]]:
+        return _query_listings(db, category, store, search, min_discount, cyber, min_rating, min_price, max_price,
+                               section, sort, page, page_size)
+
+    total, listings = response_cache.get(key, compute, db)
+    response.headers["X-Total-Count"] = str(total)
+    return listings
+
+
+def _query_listings(db, category, store, search, min_discount, cyber, min_rating, min_price, max_price,
+                    section, sort, page, page_size) -> tuple[int, list[ListingOut]]:
     query = (
         db.query(Listing)
         .join(Listing.product)
@@ -144,9 +158,9 @@ def list_listings(
     if max_price is not None:
         query = query.filter(Listing.current_price <= max_price)
 
-    response.headers["X-Total-Count"] = str(query.order_by(None).count())
+    total = query.order_by(None).count()
     listings = query.order_by(*SORTS[sort]).offset((page - 1) * page_size).limit(page_size).all()
-    return [_to_listing_out(listing) for listing in listings]
+    return total, [_to_listing_out(listing) for listing in listings]
 
 
 # Highlights skip discounts that are usually bogus (a "-95%" on a crossed-out
@@ -180,12 +194,6 @@ def _pick_varied(listings: list[Listing], count: int) -> list[Listing]:
     return picked
 
 
-# The scraper writes every ~5 min and the page polls every minute; recomputing
-# highlights on every request would scan all active listings for nothing.
-HIGHLIGHTS_TTL_SECONDS = 60
-_highlights_cache: dict[tuple[str, int], tuple[float, list[CategoryHighlightsOut]]] = {}
-
-
 def _travel_sort_key(listing: Listing) -> tuple[float, float]:
     # Fares usually come as "desde $X" with no crossed-out price: the best deal
     # is the cheapest. Real discounts (during the event) still go first.
@@ -199,10 +207,11 @@ def list_highlights(
     db: Session = Depends(get_db),
 ):
     """Best few offers of every category of a section, for the top of its page."""
-    cached = _highlights_cache.get((section, per_category))
-    if cached and time.monotonic() - cached[0] < HIGHLIGHTS_TTL_SECONDS:
-        return cached[1]
+    return response_cache.get(("highlights", section, per_category),
+                              lambda db: _compute_highlights(db, section, per_category), db)
 
+
+def _compute_highlights(db: Session, section: str, per_category: int) -> list[CategoryHighlightsOut]:
     travel = section == "viajes"
     order = (
         (Listing.current_discount_pct.desc().nulls_last(), Listing.current_price, Listing.id)
@@ -259,7 +268,6 @@ def list_highlights(
     else:
         # Biggest categories first: that's where most of the action is.
         highlights.sort(key=lambda h: h.total, reverse=True)
-    _highlights_cache[(section, per_category)] = (time.monotonic(), highlights)
     return highlights
 
 

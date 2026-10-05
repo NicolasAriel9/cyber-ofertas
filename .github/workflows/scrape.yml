@@ -55,6 +55,9 @@ on:
         type: boolean
         default: false
 
+env:
+  API_URL: https://cyber-ofertas-api.onrender.com
+
 jobs:
   scrape:
     runs-on: ubuntu-latest
@@ -76,6 +79,13 @@ jobs:
       run:
         working-directory: backend
     steps:
+      # Render's free plan puts the API to sleep after 15 minutes without
+      # requests and waking it takes about a minute; the scrape jobs run all
+      # the time during the event, so each one pings it on the way in.
+      - name: Keep the API awake
+        working-directory: .
+        run: curl -sS -m 90 -o /dev/null "$API_URL/healthz" || true
+
       # matrix isn't available in a job-level `if`, so the "stores" filter of
       # a manual run is applied here and the remaining steps are skipped.
       - name: Selected?
@@ -138,6 +148,9 @@ jobs:
       GH_TOKEN: ${{ github.token }}
       GH_REPO: ${{ github.repository }}
     steps:
+      - name: Keep the API awake
+        run: curl -sS -m 90 -o /dev/null "$API_URL/healthz" || true
+
       - uses: actions/checkout@v4
         with:
           sparse-checkout: backend/app

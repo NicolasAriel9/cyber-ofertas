@@ -72,7 +72,6 @@ def test_travel_offers_match_exact_titles_only(db_session):
 
 
 def test_travel_highlights_are_cheapest_first_and_kept_apart(db_session):
-    listings_router._highlights_cache.clear()
     flights = Category(name="Vuelos", slug="vuelos")
     tech = Category(name="Tecnología", slug="tecnologia")
     jetsmart = Store(name="JetSMART", slug="jetsmart")

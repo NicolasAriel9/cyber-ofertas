@@ -49,7 +49,7 @@ class Product(Base):
 
     id: Mapped[int] = mapped_column(primary_key=True)
     canonical_title: Mapped[str] = mapped_column(String(300))
-    category_id: Mapped[int | None] = mapped_column(ForeignKey("category.id"), default=None)
+    category_id: Mapped[int | None] = mapped_column(ForeignKey("category.id"), default=None, index=True)
     brand: Mapped[str | None] = mapped_column(String(120), default=None)
     image_url: Mapped[str | None] = mapped_column(String(500), default=None)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
@@ -64,7 +64,7 @@ class Listing(Base):
     __table_args__ = (UniqueConstraint("store_id", "external_id", name="uq_listing_store_external_id"),)
 
     id: Mapped[int] = mapped_column(primary_key=True)
-    product_id: Mapped[int] = mapped_column(ForeignKey("product.id"))
+    product_id: Mapped[int] = mapped_column(ForeignKey("product.id"), index=True)
     store_id: Mapped[int] = mapped_column(ForeignKey("store.id"))
     external_id: Mapped[str] = mapped_column(String(200))
     title: Mapped[str] = mapped_column(String(300))
