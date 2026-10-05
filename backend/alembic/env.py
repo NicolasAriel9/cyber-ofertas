@@ -6,7 +6,7 @@ from sqlalchemy import pool
 from alembic import context
 
 from app.config import settings
-from app.db import Base, normalize_database_url
+from app.db import Base, engine_connect_args, normalize_database_url
 from app import models  # noqa: F401 -- registers all models on Base.metadata
 
 # this is the Alembic Config object, which provides
@@ -62,6 +62,7 @@ def run_migrations_online() -> None:
         config.get_section(config.config_ini_section, {}),
         prefix="sqlalchemy.",
         poolclass=pool.NullPool,
+        connect_args=engine_connect_args(config.get_main_option("sqlalchemy.url")),
     )
 
     with connectable.connect() as connection:
