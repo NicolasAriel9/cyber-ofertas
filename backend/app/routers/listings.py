@@ -123,15 +123,20 @@ def list_listings(
         query = query.filter(Listing.current_discount_pct >= min_discount)
     if cyber:
         # Cheaper than right before the event, or first seen since it began.
+        # "New" only counts at stores we were already reading before the start:
+        # a store first scraped mid-event (or a database rebuilt mid-event)
+        # would otherwise list its whole catalog as Cyber offers.
         started = started_event_start()
-        query = query.filter(
-            or_(
-                Listing.current_price <= Listing.pre_event_price * CYBER_MIN_DROP,
-                Listing.first_seen_at >= started,
+        if started:
+            tracked_before = select(Listing.store_id).where(Listing.first_seen_at < started).distinct()
+            query = query.filter(
+                or_(
+                    Listing.current_price <= Listing.pre_event_price * CYBER_MIN_DROP,
+                    and_(Listing.first_seen_at >= started, Listing.store_id.in_(tracked_before)),
+                )
             )
-            if started
-            else false()
-        )
+        else:
+            query = query.filter(false())
     if min_rating is not None:
         query = query.filter(WELL_RATED, Listing.rating >= min_rating)
     if min_price is not None:
