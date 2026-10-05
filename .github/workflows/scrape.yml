@@ -13,12 +13,21 @@
 # Outside an event window the scraper no-ops (see app/scraper/event_windows.py).
 # For the next event, update the dates below and KNOWN_EVENTS.
 #
-# GitHub may start scheduled runs a few minutes late when it's busy.
+# GitHub may start scheduled runs late when it's busy -- or drop them: on
+# Oct 4 2026 the */5 schedule produced 5 runs in 8 hours. So runs also chain:
+# the "next" job of a scheduled or chained run dispatches the next run 5
+# minutes after its own start (workflow_dispatch from GITHUB_TOKEN is one of
+# the events GitHub does run). The chain picks full mode when no full sweep
+# started in the last 3 hours, stops itself outside the event window, and a
+# shared concurrency group keeps a single chain alive even when a scheduled
+# run starts a second one. Any scheduled run restarts a chain that died.
 #
 # Required repo secrets (Settings -> Secrets and variables -> Actions):
 #   DATABASE_URL, TELEGRAM_BOT_TOKEN, TELEGRAM_BOT_USERNAME
 
 name: Scrape offers
+# The chain reads the mode from here to know when the last full sweep ran.
+run-name: Scrape ${{ inputs.mode || (github.event.schedule == '0 */3 4-8 10 *' && 'full' || 'quick') }}${{ inputs.chain && ' (cadena)' || '' }}
 
 on:
   schedule:
@@ -41,6 +50,10 @@ on:
         description: "Only these jobs (comma-separated, e.g. falabella,marcas-vtex). Empty = all."
         type: string
         default: ""
+      chain:
+        description: "Dispatch the next run 5 minutes after this one starts (set by the chain itself)"
+        type: boolean
+        default: false
 
 jobs:
   scrape:
@@ -108,3 +121,45 @@ jobs:
           SCRAPE_STORES: ${{ matrix.store }}
           SCRAPE_MODE: ${{ github.event_name == 'workflow_dispatch' && inputs.mode || (github.event.schedule == '0 */3 4-8 10 *' && 'full' || 'quick') }}
           FORCE_SCRAPE: ${{ github.event_name == 'workflow_dispatch' && inputs.force && '1' || '' }}
+
+  next:
+    # Cancelling a run by hand ends the chain.
+    needs: scrape
+    if: ${{ !cancelled() && (github.event_name == 'schedule' || inputs.chain) }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      actions: write
+    # A newer chain link replaces one still waiting, so parallel chains merge.
+    concurrency:
+      group: scrape-chain
+      cancel-in-progress: true
+    env:
+      GH_TOKEN: ${{ github.token }}
+      GH_REPO: ${{ github.repository }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          sparse-checkout: backend/app
+
+      - name: Still in the event window?
+        id: window
+        working-directory: backend
+        run: |
+          python3 -c "
+          from app.scraper.event_windows import is_scrape_window_active
+          print('active=' + str(is_scrape_window_active()).lower())
+          " >> "$GITHUB_OUTPUT"
+
+      - name: Dispatch the next run
+        if: steps.window.outputs.active == 'true'
+        run: |
+          started=$(gh run view ${{ github.run_id }} --json createdAt -q .createdAt)
+          wait=$(( $(date -d "$started" +%s) + 300 - $(date +%s) ))
+          if [ "$wait" -gt 0 ]; then sleep "$wait"; fi
+          since=$(date -u -d '3 hours ago' +%Y-%m-%dT%H:%M:%SZ)
+          recent_full=$(gh run list --workflow scrape.yml --limit 100 --json displayTitle,createdAt,conclusion --jq "[.[] | select((.displayTitle | startswith(\"Scrape full\")) and .createdAt > \"$since\" and .conclusion != \"cancelled\")] | length")
+          mode=quick
+          if [ "$recent_full" = "0" ]; then mode=full; fi
+          echo "Next run: $mode"
+          gh workflow run scrape.yml --ref "${{ github.ref_name }}" -f mode="$mode" -f force=false -f chain=true
