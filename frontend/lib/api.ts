@@ -107,6 +107,8 @@ export interface Listing {
   rating: number | null;
   review_count: number | null;
   first_seen_at: string | null;
+  /** How much the price fell since the Cyber began (%), when it did. */
+  cyber_drop_pct: number | null;
 }
 
 /** Retail offers ("/") or travel deals ("/viajes"). */
@@ -175,11 +177,13 @@ export interface ListingFilters {
   store?: string;
   search?: string;
   min_discount?: number;
+  /** Only offers that got cheaper, or appeared, since the Cyber began. */
+  cyber?: boolean;
   /** Stars out of 5; only ratings backed by a few reviews count. */
   min_rating?: number;
   min_price?: number;
   max_price?: number;
-  sort?: "discount" | "savings" | "price_asc" | "price_desc" | "recent" | "rating";
+  sort?: "top" | "discount" | "savings" | "price_asc" | "price_desc" | "recent" | "rating";
   page?: number;
 }
 

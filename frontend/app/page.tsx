@@ -19,10 +19,11 @@ const PRODUCTS: SectionConfig = {
   searchPlaceholder: "¿Qué andas buscando? Ej: notebook, smart tv 55...",
   highlightsTitle: "Lo mejor de cada categoría",
   highlightsDescription: "Las 3 ofertas que más ahorran en cada sección, sin precios inflados.",
-  defaultSort: "discount",
+  defaultSort: "top",
   groupStores: true,
   allStoresLabel: "Todas las tiendas",
   sorts: [
+    ["top", "Destacadas"],
     ["discount", "Mayor descuento"],
     ["savings", "Mayor ahorro en $"],
     ["rating", "Mejor valoradas"],

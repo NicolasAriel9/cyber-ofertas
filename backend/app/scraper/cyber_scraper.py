@@ -30,7 +30,7 @@ from sqlalchemy.orm import Session, selectinload
 from app.db import SessionLocal
 from app.models import Favorite, Listing, PriceSnapshot, Store
 from app.scraper import cyber_cl
-from app.scraper.event_windows import is_scrape_window_active
+from app.scraper.event_windows import is_scrape_window_active, started_event_start
 from app.scraper.http import PoliteClient
 from app.scraper.parser import ScrapedOffer
 from app.scraper.stores import ALL_STORES, StoreScraper
@@ -38,6 +38,7 @@ from app.scraper.stores.base import MAX_PAGES_PER_DEPARTMENT
 from app.services.alerts import check_price_drop, record_alert_sent
 from app.services.matcher import ProductIndex, match_or_create_product
 from app.services.telegram_client import format_price_drop_message, send_message
+from app.utils import ensure_aware
 
 logger = logging.getLogger(__name__)
 
@@ -128,6 +129,16 @@ def upsert_offer(
             listing.product.brand = offer.brand
         if offer.image_url and not listing.product.image_url:
             listing.product.image_url = offer.image_url
+        started = started_event_start()
+        if (
+            started
+            and listing.pre_event_price is None
+            and listing.current_price is not None
+            and ensure_aware(listing.first_seen_at) < started
+        ):
+            # First visit since the event began: the stored price is still
+            # the one from before it.
+            listing.pre_event_price = listing.current_price
     if offer.details != (listing.raw_attributes or {}).get("details"):
         listing.raw_attributes = {**(listing.raw_attributes or {}), "details": offer.details}
     if offer.rating is not None:

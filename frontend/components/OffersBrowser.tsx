@@ -105,6 +105,7 @@ function Listings({ config }: { config: SectionConfig }) {
     search: searchParams.get("q") ?? undefined,
     sort: (searchParams.get("orden") as SortKey | null) ?? config.defaultSort,
     min_discount: Number(searchParams.get("descuento")) || undefined,
+    cyber: searchParams.get("cyber") === "1" || undefined,
     min_rating: Number(searchParams.get("estrellas")) || undefined,
   };
   [filters.min_price, filters.max_price] = parsePriceRange(searchParams.get("precio"));
@@ -169,7 +170,7 @@ function Listings({ config }: { config: SectionConfig }) {
   // Narrowed or re-sorted: show the matching offers right under the filters
   // instead of below the per-category highlights.
   const hasRefinements = Boolean(
-    filters.store || filters.min_discount || filters.min_rating || filters.min_price || filters.max_price
+    filters.store || filters.cyber || filters.min_discount || filters.min_rating || filters.min_price || filters.max_price
   );
   const isFiltered = Boolean(filters.search || filters.category || hasRefinements || filters.sort !== config.defaultSort);
   const refinementCount = [filters.store, filters.min_discount, filters.min_rating, filters.min_price || filters.max_price].filter(
@@ -236,6 +237,7 @@ function Listings({ config }: { config: SectionConfig }) {
       categoria: undefined,
       tienda: undefined,
       q: undefined,
+      cyber: undefined,
       orden: undefined,
       descuento: undefined,
       estrellas: undefined,
@@ -331,6 +333,20 @@ function Listings({ config }: { config: SectionConfig }) {
               </option>
             ))}
           </FilterSelect>
+          <button
+            type="button"
+            aria-pressed={Boolean(filters.cyber)}
+            title="Solo lo que bajó de precio o apareció desde que empezó el Cyber"
+            onClick={() => applyFilter({ cyber: filters.cyber ? undefined : "1" })}
+            className={cn(
+              "flex shrink-0 items-center gap-1 rounded-full border px-3 py-1.5 text-[13px] font-semibold transition-colors",
+              filters.cyber
+                ? "border-transparent bg-gradient-to-r from-orange-500 to-rose-500 text-white shadow-md"
+                : "border-orange-400/50 bg-orange-500/10 text-orange-500 hover:bg-orange-500/20"
+            )}
+          >
+            <Flame size={14} /> Ofertas Cyber
+          </button>
           <div className={cn("grid w-full grid-cols-2 gap-2 sm:contents", !filtersOpen && "max-sm:hidden")}>
             <FilterSelect
               label="Tienda"
@@ -487,9 +503,19 @@ function Listings({ config }: { config: SectionConfig }) {
         {listings?.length === 0 && (
           <EmptyState
             icon={<PackageSearch size={20} />}
-            title={isFiltered ? "No encontramos ofertas con esos filtros" : "Todavía no hay ofertas"}
+            title={
+              filters.cyber
+                ? "Todavía no hay ofertas Cyber con estos filtros"
+                : isFiltered
+                  ? "No encontramos ofertas con esos filtros"
+                  : "Todavía no hay ofertas"
+            }
             description={
-              isFiltered ? "Prueba con otra palabra o quita algún filtro." : "Es normal si el Cyber aún no comienza o el scraper no ha corrido."
+              filters.cyber
+                ? "Aquí aparece lo que baja de precio o se publica desde las 00:00 del día del Cyber. Las tiendas se revisan cada 5 minutos."
+                : isFiltered
+                  ? "Prueba con otra palabra o quita algún filtro."
+                  : "Es normal si el Cyber aún no comienza o el scraper no ha corrido."
             }
           />
         )}
