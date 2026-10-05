@@ -99,7 +99,9 @@ Step 1 (the scraper) is done; the rest needs accounts only you can create.
    workflow (`.github/workflows/scrape.yml`) runs on Oct 4-8: a quick pass
    every 5 min (first pages of each department, where new deals show up)
    and a full sweep every 3 h, each store as its own parallel job. The repo
-   is public so Actions minutes are unlimited. Run it by hand from Actions ->
+   is public so Actions minutes are unlimited. GitHub drops most runs of a 5-minute
+   schedule, so each run also dispatches the next one 5 minutes after it
+   started (the `next` job); cancel a run by hand to stop that chain. Run it by hand from Actions ->
    Scrape offers -> Run workflow (mode quick/full, optional store list).
 
 6. **Switch Telegram to the real webhook.** Stop the local poller
