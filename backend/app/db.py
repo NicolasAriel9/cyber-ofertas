@@ -1,7 +1,14 @@
+import re
+
 from sqlalchemy import create_engine
 from sqlalchemy.orm import DeclarativeBase, sessionmaker
 
 from app.config import settings
+
+# Supabase's session pooler (port 5432) refuses clients beyond its pool size
+# (15 on the free plan), less than the scraper's parallel jobs plus the API.
+# Its transaction pooler (6543) shares those connections between clients.
+SUPABASE_SESSION_POOLER = re.compile(r"(@[^/@]+\.pooler\.supabase\.com):5432(?=/|$)")
 
 
 def normalize_database_url(url: str) -> str:
@@ -9,13 +16,21 @@ def normalize_database_url(url: str) -> str:
     maps to psycopg2; this project installs psycopg 3."""
     for prefix in ("postgres://", "postgresql://"):
         if url.startswith(prefix):
-            return "postgresql+psycopg://" + url[len(prefix):]
-    return url
+            url = "postgresql+psycopg://" + url[len(prefix):]
+            break
+    return SUPABASE_SESSION_POOLER.sub(r"\1:6543", url)
+
+
+def engine_connect_args(url: str) -> dict:
+    if url.startswith("sqlite"):
+        return {"check_same_thread": False}
+    # A transaction pooler hands each transaction a different server
+    # connection, where psycopg's prepared statements wouldn't exist.
+    return {"prepare_threshold": None}
 
 
 database_url = normalize_database_url(settings.database_url)
-connect_args = {"check_same_thread": False} if database_url.startswith("sqlite") else {}
-engine = create_engine(database_url, connect_args=connect_args, pool_pre_ping=True)
+engine = create_engine(database_url, connect_args=engine_connect_args(database_url), pool_pre_ping=True)
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 
 
