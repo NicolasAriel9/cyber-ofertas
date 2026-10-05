@@ -7,7 +7,7 @@ from app.scraper.event_windows import CHILE, started_event_start
 from app.scraper.parser import ScrapedOffer
 from tests.test_highlights import _listing
 
-START = datetime(2026, 10, 5, tzinfo=CHILE)
+START = datetime(2026, 10, 4, tzinfo=CHILE)
 
 
 class FakeResponse:
@@ -20,9 +20,9 @@ def _titles(db, **filters):
     return [l.title for l in listings_router.list_listings(**{**params, **filters})]
 
 
-def test_event_starts_at_midnight_in_chile():
-    assert started_event_start(datetime(2026, 10, 5, 2, 59, tzinfo=timezone.utc)) is None
-    assert started_event_start(datetime(2026, 10, 5, 3, 0, tzinfo=timezone.utc)) == START
+def test_cyber_prices_count_from_midnight_the_day_before():
+    assert started_event_start(datetime(2026, 10, 4, 2, 59, tzinfo=timezone.utc)) is None
+    assert started_event_start(datetime(2026, 10, 4, 3, 0, tzinfo=timezone.utc)) == START
 
 
 def test_first_scrape_after_the_start_keeps_the_price_from_before(db_session, monkeypatch):

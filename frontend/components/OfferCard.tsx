@@ -126,7 +126,7 @@ export function OfferCard({ listing, rank }: { listing: Listing; rank?: number }
             {listing.cyber_drop_pct ? (
               <p
                 className="inline-flex items-center gap-0.5 rounded-md bg-orange-500/15 px-1.5 py-0.5 text-xs font-semibold text-orange-500"
-                title="Comparado con su precio justo antes de que empezara el Cyber"
+                title="Comparado con su precio del día antes del Cyber"
               >
                 <Flame size={11} /> Bajó {listing.cyber_drop_pct.toLocaleString("es-CL")}% en el Cyber
               </p>

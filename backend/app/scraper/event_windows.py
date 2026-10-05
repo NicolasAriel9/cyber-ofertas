@@ -25,8 +25,15 @@ KNOWN_EVENTS: list[EventWindow] = [
 ]
 
 
+# Stores don't wait for the official start: in Oct 2026 Cyber prices went up
+# through the afternoon before (13k+ drops per scrape vs. a few hundred the
+# days before). Event prices are compared against the day before the event.
+DEALS_EARLY = timedelta(days=1)
+
+
 def event_start(event: EventWindow) -> datetime:
-    return datetime.combine(event.start, datetime.min.time(), tzinfo=CHILE)
+    """When Cyber prices start: midnight in Chile, the day before the event."""
+    return datetime.combine(event.start - DEALS_EARLY, datetime.min.time(), tzinfo=CHILE)
 
 
 def started_event_start(now: datetime | None = None) -> datetime | None:
