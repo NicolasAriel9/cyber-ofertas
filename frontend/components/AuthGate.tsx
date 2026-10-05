@@ -5,6 +5,7 @@ import { ArrowRight, Loader2, Sparkles, TriangleAlert } from "lucide-react";
 import { useEffect, useState } from "react";
 import {
   api,
+  ApiError,
   checkCredentials,
   getCredentials,
   getSubscriberId,
@@ -52,7 +53,11 @@ export default function AuthGate({ children }: { children: React.ReactNode }) {
   if (subscribersQuery.isError) {
     return (
       <LoginForm
-        error="No se pudo conectar con el servidor. Revisa la URL y credenciales."
+        error={
+          subscribersQuery.error instanceof ApiError && subscribersQuery.error.status === 401
+            ? "Usuario o contraseña incorrectos."
+            : "No se pudo conectar con el servidor. Revisa la URL del backend o intenta de nuevo en un minuto."
+        }
         onDone={onCredsSubmitted}
       />
     );
