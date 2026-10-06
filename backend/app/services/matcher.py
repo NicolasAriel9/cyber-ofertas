@@ -10,7 +10,7 @@ from collections import defaultdict
 from dataclasses import dataclass, field
 
 from rapidfuzz import fuzz, process
-from sqlalchemy import func, select
+from sqlalchemy import and_, func, select
 from sqlalchemy.orm import Session
 
 from app.models import Category, Listing, Product
@@ -65,15 +65,29 @@ class ProductIndex:
         # Products created without a flush (batched scrapes) have no id yet;
         # they're indexed by register_pending() once their batch is flushed.
         self.pending: list[tuple[Product, float]] = []
+        # Loading every product with its average price reads the two biggest
+        # tables: 15 parallel scrape jobs doing it at once took the free
+        # database down (Oct 5 2026). Each category is loaded the first time a
+        # new offer of that category needs matching; a quick pass mostly sees
+        # offers it already knows and loads nothing.
+        self._db = db
+        self._loaded: set[int | None] = set()
 
-        for product_id, title, category_id in db.query(Product.id, Product.canonical_title, Product.category_id):
+    def _ensure_loaded(self, category_id: int | None) -> None:
+        if category_id in self._loaded:
+            return
+        self._loaded.add(category_id)
+        in_category = Product.category_id.is_(None) if category_id is None else Product.category_id == category_id
+        rows = self._db.execute(
+            select(Product.id, Product.canonical_title, func.avg(Listing.current_price))
+            .outerjoin(Listing, and_(Listing.product_id == Product.id, Listing.current_price.is_not(None)))
+            .where(in_category)
+            .group_by(Product.id)
+        )
+        for product_id, title, avg_price in rows:
             self._add(product_id, title, category_id)
-        for product_id, avg_price in (
-            db.query(Listing.product_id, func.avg(Listing.current_price))
-            .filter(Listing.current_price.is_not(None))
-            .group_by(Listing.product_id)
-        ):
-            self.prices[product_id] = float(avg_price)
+            if avg_price is not None:
+                self.prices[product_id] = float(avg_price)
 
     def _add(self, product_id: int, title: str, category_id: int | None) -> None:
         bucket = self.buckets[category_id]
@@ -82,12 +96,18 @@ class ProductIndex:
         bucket.spec_tokens.append(extract_spec_tokens(title))
 
     def add(self, product: Product, price: float) -> None:
-        self._add(product.id, product.canonical_title, product.category_id)
+        if product.category_id not in self._loaded:
+            # Already flushed, so loading the category brings it in.
+            self._ensure_loaded(product.category_id)
+        else:
+            self._add(product.id, product.canonical_title, product.category_id)
         self.prices[product.id] = price
 
     def register_pending(self) -> None:
         for product, price in self.pending:
-            self.add(product, price)
+            # Categories nobody matched against yet will load them from the DB.
+            if product.category_id in self._loaded:
+                self.add(product, price)
         self.pending.clear()
 
     def get_or_create_category(self, db: Session, slug: str) -> Category:
@@ -102,6 +122,7 @@ class ProductIndex:
         return category
 
     def best_match(self, title: str, price: float, category_id: int | None) -> int | None:
+        self._ensure_loaded(category_id)
         bucket = self.buckets.get(category_id)
         if not bucket or not bucket.titles:
             return None
