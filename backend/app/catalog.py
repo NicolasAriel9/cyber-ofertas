@@ -18,7 +18,7 @@ import time
 from dataclasses import dataclass
 from datetime import datetime, timedelta
 
-from sqlalchemy import select
+from sqlalchemy import select, text
 from sqlalchemy.orm import Session
 
 from app.db import SessionLocal
@@ -142,6 +142,11 @@ class Catalog:
         query = select(*_COLUMNS).join(Product, Listing.product_id == Product.id)
         if since is not None:
             query = query.where(Listing.updated_at >= since - OVERLAP)
+        elif db.get_bind().dialect.name == "postgresql":
+            # Supabase cancels statements after ~2 minutes; on its throttled
+            # disk a full read can take longer. SET LOCAL lasts until this
+            # transaction ends, on the session the pooler gave it.
+            db.execute(text("SET LOCAL statement_timeout = 0"))
         count = 0
         for r in db.execute(query.execution_options(yield_per=5000)):
             count += 1
