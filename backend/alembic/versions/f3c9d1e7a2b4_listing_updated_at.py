@@ -6,11 +6,15 @@ Supabase's free plan, once the day's I/O burst is spent, a scan takes minutes
 with the rows written since the last refresh, found through this column.
 Existing rows stay NULL: they're read by the initial full load.
 
-On Postgres it runs as one transaction that can be retried: the first deploy
-failed halfway (Supabase cancels statements after ~2 minutes, and building the
-index on the throttled disk took longer; CREATE INDEX CONCURRENTLY can't lift
-that limit through the transaction pooler, where every statement may land on
-a different server session).
+Deploying it took several tries (Oct 6 2026):
+- Supabase cancels statements after ~2 minutes, and building the index on
+  the throttled disk took longer; CREATE INDEX CONCURRENTLY can't lift that
+  limit through the transaction pooler. It now runs in one transaction with
+  SET LOCAL statement_timeout = 0.
+- The API being replaced kept full scans of listing running, each longer
+  than 10 minutes, so the ALTER never got its lock. Long queries on listing
+  are now cancelled first (they only read; the old API serves its cached
+  copy), and the lock is retried.
 
 Revision ID: f3c9d1e7a2b4
 Revises: e7b3a1d9c5f2
@@ -21,6 +25,7 @@ from typing import Sequence, Union
 
 import sqlalchemy as sa
 from alembic import op
+from sqlalchemy.exc import OperationalError
 
 
 # revision identifiers, used by Alembic.
@@ -29,6 +34,34 @@ down_revision: Union[str, None] = 'e7b3a1d9c5f2'
 branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
 
+ATTEMPTS = 10
+
+CANCEL_LONG_QUERIES_ON_LISTING = sa.text("""
+    SELECT pg_cancel_backend(pid) FROM pg_stat_activity
+    WHERE datname = current_database() AND pid <> pg_backend_pid()
+      AND state = 'active' AND query ILIKE '%listing%'
+      AND now() - query_start > interval '15 seconds'
+""")
+
+
+def _with_lock(statement: str) -> None:
+    """Runs a statement that needs a lock on listing, cancelling the long
+    queries holding it and retrying. A savepoint keeps the transaction usable
+    after a lock timeout."""
+    bind = op.get_bind()
+    for attempt in range(1, ATTEMPTS + 1):
+        bind.execute(CANCEL_LONG_QUERIES_ON_LISTING)
+        bind.execute(sa.text("SAVEPOINT take_lock"))
+        try:
+            bind.execute(sa.text(statement))
+        except OperationalError:
+            bind.execute(sa.text("ROLLBACK TO SAVEPOINT take_lock"))
+            if attempt == ATTEMPTS:
+                raise
+            continue
+        bind.execute(sa.text("RELEASE SAVEPOINT take_lock"))
+        return
+
 
 def upgrade() -> None:
     if op.get_bind().dialect.name != 'postgresql':
@@ -36,18 +69,15 @@ def upgrade() -> None:
         op.create_index('ix_listing_updated_at', 'listing', ['updated_at'])
         return
     # SET LOCAL lasts until this transaction ends, on the server session the
-    # pooler gave it. The ALTER must wait for every query already reading
-    # listing, and the API being replaced runs full scans that take minutes on
-    # the throttled disk: a 30 s cap failed the deploy (Oct 6 2026). New
-    # queries on listing queue behind the wait; adding the column itself is
-    # instant.
+    # pooler gave it. While a statement waits for its lock, new queries on
+    # listing queue behind it, so the wait is kept short and retried.
     op.execute("SET LOCAL statement_timeout = 0")
-    op.execute("SET LOCAL lock_timeout = '10min'")
-    op.execute("ALTER TABLE listing ADD COLUMN IF NOT EXISTS updated_at TIMESTAMP WITH TIME ZONE")
+    op.execute("SET LOCAL lock_timeout = '1min'")
+    _with_lock("ALTER TABLE listing ADD COLUMN IF NOT EXISTS updated_at TIMESTAMP WITH TIME ZONE")
     # A failed CONCURRENTLY build leaves an invalid index behind.
-    op.execute("DROP INDEX IF EXISTS ix_listing_updated_at")
+    _with_lock("DROP INDEX IF EXISTS ix_listing_updated_at")
     # Blocks the scraper's writes (not reads) while it builds.
-    op.execute("CREATE INDEX ix_listing_updated_at ON listing (updated_at)")
+    _with_lock("CREATE INDEX ix_listing_updated_at ON listing (updated_at)")
 
 
 def downgrade() -> None:
