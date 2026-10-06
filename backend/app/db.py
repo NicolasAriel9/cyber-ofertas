@@ -21,13 +21,13 @@ def normalize_database_url(url: str) -> str:
     return SUPABASE_SESSION_POOLER.sub(r"\1:6543", url)
 
 
-def engine_connect_args(url: str) -> dict:
+def engine_connect_args(url: str, connect_timeout: int = 15) -> dict:
     if url.startswith("sqlite"):
         return {"check_same_thread": False}
     # A transaction pooler hands each transaction a different server
     # connection, where psycopg's prepared statements wouldn't exist. A busy
     # pooler can leave a connection attempt hanging: give up and retry later.
-    return {"prepare_threshold": None, "connect_timeout": 15}
+    return {"prepare_threshold": None, "connect_timeout": connect_timeout}
 
 
 def engine_pool_args(url: str) -> dict:
