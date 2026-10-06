@@ -36,11 +36,13 @@ def upgrade() -> None:
         op.create_index('ix_listing_updated_at', 'listing', ['updated_at'])
         return
     # SET LOCAL lasts until this transaction ends, on the server session the
-    # pooler gave it. The lock wait is capped so that, behind a long scraper
-    # transaction, every other query on listing doesn't queue up behind us:
-    # better to fail and retry the deploy.
+    # pooler gave it. The ALTER must wait for every query already reading
+    # listing, and the API being replaced runs full scans that take minutes on
+    # the throttled disk: a 30 s cap failed the deploy (Oct 6 2026). New
+    # queries on listing queue behind the wait; adding the column itself is
+    # instant.
     op.execute("SET LOCAL statement_timeout = 0")
-    op.execute("SET LOCAL lock_timeout = '30s'")
+    op.execute("SET LOCAL lock_timeout = '10min'")
     op.execute("ALTER TABLE listing ADD COLUMN IF NOT EXISTS updated_at TIMESTAMP WITH TIME ZONE")
     # A failed CONCURRENTLY build leaves an invalid index behind.
     op.execute("DROP INDEX IF EXISTS ix_listing_updated_at")
