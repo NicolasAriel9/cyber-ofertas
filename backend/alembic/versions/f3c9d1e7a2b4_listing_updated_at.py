@@ -36,22 +36,26 @@ depends_on: Union[str, Sequence[str], None] = None
 
 ATTEMPTS = 10
 
-CANCEL_LONG_QUERIES_ON_LISTING = sa.text("""
-    SELECT pg_cancel_backend(pid) FROM pg_stat_activity
-    WHERE datname = current_database() AND pid <> pg_backend_pid()
-      AND usename = current_user
-      AND state = 'active' AND query ILIKE '%listing%'
-      AND now() - query_start > interval '15 seconds'
-""")
+# Sessions of ours holding a lock on listing, found through pg_locks: matching
+# the query text missed the API's catalog read, which runs as a cursor
+# ("FETCH FORWARD ..."), and kept the ALTER waiting (Oct 6 2026). Only our own
+# role: Supabase's monitoring runs as a superuser and can't be signalled.
+_HOLDING_LISTING = """
+    FROM pg_locks l JOIN pg_stat_activity a ON a.pid = l.pid
+    WHERE l.relation = 'listing'::regclass AND l.granted AND l.pid <> pg_backend_pid()
+      AND a.usename = current_user
+"""
 
-# A session that opened a transaction and went quiet holds its locks until it
-# ends: a stuck client of ours (one sat there for minutes on Oct 6 2026).
-END_STUCK_TRANSACTIONS = sa.text("""
-    SELECT pg_terminate_backend(pid) FROM pg_stat_activity
-    WHERE datname = current_database() AND pid <> pg_backend_pid()
-      AND usename = current_user
-      AND state = 'idle in transaction' AND now() - state_change > interval '1 minute'
-""")
+CANCEL_LONG_QUERIES_ON_LISTING = sa.text(
+    "SELECT pg_cancel_backend(a.pid)" + _HOLDING_LISTING
+    + " AND a.state = 'active' AND now() - a.query_start > interval '15 seconds'"
+)
+
+# A transaction that went quiet keeps its locks until it ends.
+END_STUCK_TRANSACTIONS = sa.text(
+    "SELECT pg_terminate_backend(a.pid)" + _HOLDING_LISTING
+    + " AND a.state LIKE 'idle in transaction%' AND now() - a.state_change > interval '30 seconds'"
+)
 
 
 def _with_lock(statement: str) -> None:
