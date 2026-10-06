@@ -7,7 +7,8 @@ from app.scraper.event_windows import CHILE, started_event_start
 from app.scraper.parser import ScrapedOffer
 from tests.test_highlights import _listing
 
-START = datetime(2026, 10, 4, tzinfo=CHILE)
+# In UTC: SQLite drops the offset when it stores a datetime.
+START = datetime(2026, 10, 4, tzinfo=CHILE).astimezone(timezone.utc)
 
 
 class FakeResponse:

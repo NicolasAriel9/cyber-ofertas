@@ -74,6 +74,11 @@ class Listing(Base):
     first_seen_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
     last_seen_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
     is_active: Mapped[bool] = mapped_column(Boolean, default=True)
+    # Set on every write, so the API's in-memory catalog (app/catalog.py) can
+    # fetch just what changed instead of re-reading ~250k rows.
+    updated_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), default=utcnow, onupdate=utcnow, index=True
+    )
     # Denormalized copy of the latest PriceSnapshot so the listings endpoint can
     # filter/sort/paginate in SQL instead of loading every snapshot -- with
     # tens of thousands of scraped offers, doing that in Python doesn't scale.

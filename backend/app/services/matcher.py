@@ -10,7 +10,7 @@ from collections import defaultdict
 from dataclasses import dataclass, field
 
 from rapidfuzz import fuzz, process
-from sqlalchemy import and_, func, select
+from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
 from app.models import Category, Listing, Product
@@ -67,27 +67,33 @@ class ProductIndex:
         self.pending: list[tuple[Product, float]] = []
         # Loading every product with its average price reads the two biggest
         # tables: 15 parallel scrape jobs doing it at once took the free
-        # database down (Oct 5 2026). Each category is loaded the first time a
-        # new offer of that category needs matching; a quick pass mostly sees
-        # offers it already knows and loads nothing.
+        # database down (Oct 5 2026). Each category's titles are loaded the
+        # first time a new offer of that category needs matching (a quick pass
+        # mostly sees offers it already knows and loads nothing), and prices
+        # only for the few products whose title matched.
         self._db = db
         self._loaded: set[int | None] = set()
+        self._priced: set[int] = set()
 
     def _ensure_loaded(self, category_id: int | None) -> None:
         if category_id in self._loaded:
             return
         self._loaded.add(category_id)
         in_category = Product.category_id.is_(None) if category_id is None else Product.category_id == category_id
-        rows = self._db.execute(
-            select(Product.id, Product.canonical_title, func.avg(Listing.current_price))
-            .outerjoin(Listing, and_(Listing.product_id == Product.id, Listing.current_price.is_not(None)))
-            .where(in_category)
-            .group_by(Product.id)
-        )
-        for product_id, title, avg_price in rows:
+        for product_id, title in self._db.execute(select(Product.id, Product.canonical_title).where(in_category)):
             self._add(product_id, title, category_id)
-            if avg_price is not None:
-                self.prices[product_id] = float(avg_price)
+
+    def _load_prices(self, product_ids: list[int]) -> None:
+        missing = [pid for pid in product_ids if pid not in self.prices and pid not in self._priced]
+        if not missing:
+            return
+        self._priced.update(missing)
+        for product_id, avg_price in self._db.execute(
+            select(Listing.product_id, func.avg(Listing.current_price))
+            .where(Listing.product_id.in_(missing), Listing.current_price.is_not(None))
+            .group_by(Listing.product_id)
+        ):
+            self.prices[product_id] = float(avg_price)
 
     def _add(self, product_id: int, title: str, category_id: int | None) -> None:
         bucket = self.buckets[category_id]
@@ -134,11 +140,14 @@ class ProductIndex:
             score_cutoff=TITLE_SIMILARITY_THRESHOLD,
             limit=10,
         )
-        for _, _score, position in matches:  # best score first
-            candidate_tokens = bucket.spec_tokens[position]
-            if spec_tokens and candidate_tokens and spec_tokens.isdisjoint(candidate_tokens):
-                continue  # e.g. a 43" and a 55" TV with an otherwise near-identical title
-            product_id = bucket.product_ids[position]
+        # e.g. a 43" and a 55" TV with an otherwise near-identical title
+        candidates = [
+            bucket.product_ids[position]
+            for _, _score, position in matches  # best score first
+            if not (spec_tokens and bucket.spec_tokens[position] and spec_tokens.isdisjoint(bucket.spec_tokens[position]))
+        ]
+        self._load_prices(candidates)
+        for product_id in candidates:
             known_price = self.prices.get(product_id)
             if known_price and abs(price - known_price) / known_price > MAX_PRICE_RATIO_DIFF:
                 continue
