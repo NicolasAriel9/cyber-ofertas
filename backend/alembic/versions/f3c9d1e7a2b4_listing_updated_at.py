@@ -25,7 +25,7 @@ from typing import Sequence, Union
 
 import sqlalchemy as sa
 from alembic import op
-from sqlalchemy.exc import OperationalError
+from sqlalchemy.exc import DBAPIError, OperationalError
 
 
 # revision identifiers, used by Alembic.
@@ -39,8 +39,18 @@ ATTEMPTS = 10
 CANCEL_LONG_QUERIES_ON_LISTING = sa.text("""
     SELECT pg_cancel_backend(pid) FROM pg_stat_activity
     WHERE datname = current_database() AND pid <> pg_backend_pid()
+      AND usename = current_user
       AND state = 'active' AND query ILIKE '%listing%'
       AND now() - query_start > interval '15 seconds'
+""")
+
+# A session that opened a transaction and went quiet holds its locks until it
+# ends: a stuck client of ours (one sat there for minutes on Oct 6 2026).
+END_STUCK_TRANSACTIONS = sa.text("""
+    SELECT pg_terminate_backend(pid) FROM pg_stat_activity
+    WHERE datname = current_database() AND pid <> pg_backend_pid()
+      AND usename = current_user
+      AND state = 'idle in transaction' AND now() - state_change > interval '1 minute'
 """)
 
 
@@ -50,7 +60,17 @@ def _with_lock(statement: str) -> None:
     after a lock timeout."""
     bind = op.get_bind()
     for attempt in range(1, ATTEMPTS + 1):
-        bind.execute(CANCEL_LONG_QUERIES_ON_LISTING)
+        # Only our own role's queries (the API and the scraper): Supabase's
+        # monitoring runs as a superuser, which can't be cancelled (the first
+        # try failed on it). Cancelling is best effort.
+        for clear in (CANCEL_LONG_QUERIES_ON_LISTING, END_STUCK_TRANSACTIONS):
+            bind.execute(sa.text("SAVEPOINT clear_way"))
+            try:
+                bind.execute(clear)
+            except DBAPIError:
+                bind.execute(sa.text("ROLLBACK TO SAVEPOINT clear_way"))
+            else:
+                bind.execute(sa.text("RELEASE SAVEPOINT clear_way"))
         bind.execute(sa.text("SAVEPOINT take_lock"))
         try:
             bind.execute(sa.text(statement))
