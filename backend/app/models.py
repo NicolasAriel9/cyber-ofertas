@@ -12,8 +12,10 @@ from sqlalchemy import (
     String,
     UniqueConstraint,
     and_,
+    event,
 )
-from sqlalchemy.orm import Mapped, mapped_column, relationship
+from sqlalchemy.dialects import postgresql, sqlite
+from sqlalchemy.orm import Mapped, Session, mapped_column, relationship
 
 from app.db import Base
 from app.utils import ensure_aware
@@ -74,11 +76,6 @@ class Listing(Base):
     first_seen_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
     last_seen_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
     is_active: Mapped[bool] = mapped_column(Boolean, default=True)
-    # Set on every write, so the API's in-memory catalog (app/catalog.py) can
-    # fetch just what changed instead of re-reading ~250k rows.
-    updated_at: Mapped[datetime | None] = mapped_column(
-        DateTime(timezone=True), default=utcnow, onupdate=utcnow, index=True
-    )
     # Denormalized copy of the latest PriceSnapshot so the listings endpoint can
     # filter/sort/paginate in SQL instead of loading every snapshot -- with
     # tens of thousands of scraped offers, doing that in Python doesn't scale.
@@ -166,3 +163,36 @@ class AlertEvent(Base):
     new_price: Mapped[float] = mapped_column(Numeric(12, 2))
     pct_drop: Mapped[float] = mapped_column(Numeric(5, 2))
     sent_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+
+
+class ListingChange(Base):
+    """When each listing was last written, so the API's in-memory catalog
+    (app/catalog.py) fetches just what changed instead of ~250k rows.
+
+    A table of its own rather than a listing column: adding a column needs an
+    exclusive lock on listing, and on Oct 6 2026 an autovacuum ANALYZE ran on
+    the throttled database for hours without letting it through. No foreign
+    key for the same reason (creating one locks listing too).
+    """
+
+    __tablename__ = "listing_change"
+
+    listing_id: Mapped[int] = mapped_column(primary_key=True, autoincrement=False)
+    changed_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow, index=True)
+
+
+@event.listens_for(Session, "after_flush")
+def _record_listing_changes(session: Session, flush_context) -> None:
+    changed = [
+        obj.id
+        for obj in (*session.new, *session.dirty)
+        if isinstance(obj, Listing) and obj.id is not None and session.is_modified(obj, include_collections=False)
+    ]
+    if not changed:
+        return
+    dialect = session.get_bind().dialect.name
+    insert = postgresql.insert if dialect == "postgresql" else sqlite.insert
+    now = utcnow()
+    statement = insert(ListingChange).values([{"listing_id": i, "changed_at": now} for i in changed])
+    statement = statement.on_conflict_do_update(index_elements=["listing_id"], set_={"changed_at": now})
+    session.connection().execute(statement)

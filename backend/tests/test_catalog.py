@@ -42,4 +42,4 @@ def test_refresh_reads_only_what_changed(db_session):
     assert live["tv"].price == 250_000
     assert "nueva" in live
     assert len(live) == 7
-    assert any("updated_at >=" in s for s in rows_read)  # not a full read
+    assert any("listing_change" in s for s in rows_read)  # not a full read

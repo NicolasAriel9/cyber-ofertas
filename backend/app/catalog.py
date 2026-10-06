@@ -5,7 +5,7 @@ listing table (~250k rows, 165 MB) on every request and every cache refresh.
 On Supabase's free plan, once the day's I/O burst is spent, such a scan takes
 minutes, and the app stopped loading (Oct 5 2026). Now the table is read once
 when the API starts; after that, every REFRESH seconds, only the rows written
-since (listing.updated_at, indexed). Requests filter and sort this copy in
+since (listed in listing_change). Requests filter and sort this copy in
 Python and only fetch the ~30 rows they show, by primary key.
 
 Disabled unless the app enables it at startup: tests (and anything else
@@ -22,7 +22,7 @@ from sqlalchemy import select, text
 from sqlalchemy.orm import Session
 
 from app.db import SessionLocal
-from app.models import LISTING_STALE_AFTER, Category, Listing, Product, Store, utcnow
+from app.models import LISTING_STALE_AFTER, Category, Listing, ListingChange, Product, Store, utcnow
 from app.sections import TRAVEL_CATEGORY_SLUGS
 from app.utils import ensure_aware
 
@@ -35,7 +35,7 @@ REFRESH = 60
 # commits, a little later: re-read a margin, re-applying a row is harmless.
 OVERLAP = timedelta(minutes=5)
 # A full re-read now and then (in the background, requests keep the current
-# copy) catches writes that didn't stamp updated_at -- a scrape job started
+# copy) catches writes listing_change missed -- a scrape job started
 # before this code was deployed -- and product category/brand changes.
 FULL_EVERY = 30 * 60
 
@@ -141,7 +141,9 @@ class Catalog:
         since, next_since = self._since, utcnow()
         query = select(*_COLUMNS).join(Product, Listing.product_id == Product.id)
         if since is not None:
-            query = query.where(Listing.updated_at >= since - OVERLAP)
+            query = query.join(ListingChange, ListingChange.listing_id == Listing.id).where(
+                ListingChange.changed_at >= since - OVERLAP
+            )
         elif db.get_bind().dialect.name == "postgresql":
             # Supabase cancels statements after ~2 minutes; on its throttled
             # disk a full read can take longer. SET LOCAL lasts until this
