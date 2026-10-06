@@ -62,7 +62,8 @@ def run_migrations_online() -> None:
         config.get_section(config.config_ini_section, {}),
         prefix="sqlalchemy.",
         poolclass=pool.NullPool,
-        connect_args=engine_connect_args(config.get_main_option("sqlalchemy.url")),
+        # A migration can wait for a slow database; the app shouldn't.
+        connect_args=engine_connect_args(config.get_main_option("sqlalchemy.url"), connect_timeout=120),
     )
 
     with connectable.connect() as connection:
