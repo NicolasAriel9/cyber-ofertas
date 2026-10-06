@@ -1,16 +1,18 @@
+import heapq
 import math
+from collections import Counter
 
 from fastapi import APIRouter, Depends, Query, Response
-from sqlalchemy import and_, case, false, func, or_, select
 from sqlalchemy.orm import Session, joinedload
 
 from app.auth import require_auth
 from app.cache import response_cache
+from app.catalog import SORT_KEYS, Row, catalog, well_rated
 from app.db import get_db
-from app.models import Category, Listing, Product, Store, listing_is_live
+from app.models import Category, Listing, Product
 from app.scraper.event_windows import started_event_start
 from app.schemas import CategoryHighlightsOut, ListingOut
-from app.sections import SECTION_PATTERN, TRAVEL_CATEGORY_SLUGS, section_filter
+from app.sections import SECTION_PATTERN, TRAVEL_CATEGORY_SLUGS
 
 router = APIRouter(dependencies=[Depends(require_auth)], tags=["listings"])
 
@@ -48,42 +50,6 @@ def _to_listing_out(listing: Listing) -> ListingOut:
     )
 
 
-MIN_REVIEWS = 3
-# A rating backed by enough reviews to trust (see the "rating" sort).
-WELL_RATED = and_(Listing.rating.is_not(None), func.coalesce(Listing.review_count, MIN_REVIEWS) >= MIN_REVIEWS)
-SAVINGS = Listing.current_original_price - Listing.current_price
-
-# Same idea as the highlights score (_highlight_score): the discount weighted
-# by the money it saves, with implausible discounts sent to the bottom.
-BELIEVABLE_DEAL = and_(
-    Listing.current_discount_pct.between(20, 85),
-    SAVINGS >= 5000,
-)
-
-SORTS = {
-    "top": (
-        case((BELIEVABLE_DEAL, 0), else_=1),
-        (Listing.current_discount_pct * func.ln(case((SAVINGS > 1, SAVINGS), else_=1))).desc().nulls_last(),
-        Listing.id,
-    ),
-    "discount": (Listing.current_discount_pct.desc().nulls_last(), Listing.id),
-    "price_asc": (Listing.current_price.asc().nulls_last(), Listing.id),
-    "price_desc": (Listing.current_price.desc().nulls_last(), Listing.id),
-    "recent": (Listing.first_seen_at.desc(), Listing.id.desc()),
-    "savings": (SAVINGS.desc().nulls_last(), Listing.id),
-    # A 5-star product with one review shouldn't outrank a 4.8 with hundreds:
-    # ratings backed by fewer than MIN_REVIEWS reviews go after the rest.
-    # Mercado Libre doesn't publish the count, so its ratings count as backed.
-    "rating": (
-        case((WELL_RATED, 0), else_=1),
-        Listing.rating.desc().nulls_last(),
-        Listing.review_count.desc().nulls_last(),
-        Listing.current_discount_pct.desc().nulls_last(),
-        Listing.id,
-    ),
-}
-
-
 @router.get("/listings", response_model=list[ListingOut])
 def list_listings(
     category: str | None = None,
@@ -115,21 +81,20 @@ def list_listings(
 
 def _query_listings(db, category, store, search, min_discount, cyber, min_rating, min_price, max_price,
                     section, sort, page, page_size) -> tuple[int, list[ListingOut]]:
-    query = db.query(Listing).join(Listing.product).filter(listing_is_live())
+    snapshot = catalog.get(db)
+    rows = snapshot.live(section)
 
-    if (where := section_filter(section)) is not None:
-        query = query.filter(where)
     if store:
-        query = query.join(Store).filter(Store.slug == store)
+        rows = [r for r in rows if snapshot.store_slugs.get(r.store_id) == store]
     if category:
-        query = query.join(Category, Product.category_id == Category.id).filter(Category.slug == category)
+        rows = [r for r in rows if snapshot.category_slugs.get(r.category_id) == category]
     if search:
         # Every word must appear in the title or the brand: stores often leave
         # the brand out of the title ("Notebook IdeaPad Slim 3...").
-        for word in search.split():
-            query = query.filter(or_(Listing.title.ilike(f"%{word}%"), Product.brand.ilike(f"%{word}%")))
+        for word in search.lower().split():
+            rows = [r for r in rows if word in r.title or word in r.brand]
     if min_discount is not None:
-        query = query.filter(Listing.current_discount_pct >= min_discount)
+        rows = [r for r in rows if r.discount_pct is not None and r.discount_pct >= min_discount]
     if cyber:
         # Cheaper than right before the event, or first seen since it began.
         # "New" only counts at stores we were already reading before the start:
@@ -137,42 +102,38 @@ def _query_listings(db, category, store, search, min_discount, cyber, min_rating
         # would otherwise list its whole catalog as Cyber offers.
         started = started_event_start()
         if started:
-            tracked_before = select(Listing.store_id).where(Listing.first_seen_at < started).distinct()
-            query = query.filter(
-                or_(
-                    Listing.current_price <= Listing.pre_event_price * CYBER_MIN_DROP,
-                    and_(Listing.first_seen_at >= started, Listing.store_id.in_(tracked_before)),
-                )
-            )
+            tracked_before = snapshot.stores_tracked_before(started)
+            started_ts = started.timestamp()
+            rows = [
+                r for r in rows
+                if (r.pre_event_price is not None and r.price is not None
+                    and r.price <= r.pre_event_price * CYBER_MIN_DROP)
+                or (r.first_seen >= started_ts and r.store_id in tracked_before)
+            ]
         else:
-            query = query.filter(false())
+            rows = []
     if min_rating is not None:
-        query = query.filter(WELL_RATED, Listing.rating >= min_rating)
+        rows = [r for r in rows if well_rated(r) and r.rating >= min_rating]
     if min_price is not None:
-        query = query.filter(Listing.current_price >= min_price)
+        rows = [r for r in rows if r.price is not None and r.price >= min_price]
     if max_price is not None:
-        query = query.filter(Listing.current_price <= max_price)
+        rows = [r for r in rows if r.price is not None and r.price <= max_price]
 
-    # The total rides along with the page (count(*) over ()), so the live
-    # offers are scanned once instead of once for the count and once more for
-    # the page; the page's rows are then loaded by id.
-    rows = (
-        query.with_entities(Listing.id, func.count().over())
-        .order_by(*SORTS[sort])
-        .offset((page - 1) * page_size)
-        .limit(page_size)
-        .all()
-    )
-    if not rows:
-        return (query.order_by(None).count() if page > 1 else 0), []
-    ids = [listing_id for listing_id, _ in rows]
+    page_rows = heapq.nsmallest(page * page_size, rows, key=SORT_KEYS[sort])[(page - 1) * page_size:]
+    return len(rows), _listings_out(db, [r.id for r in page_rows])
+
+
+def _listings_out(db: Session, ids: list[int]) -> list[ListingOut]:
+    """The rows to show, by primary key, in the given order."""
+    if not ids:
+        return []
     by_id = {
         listing.id: listing
         for listing in db.query(Listing)
         .filter(Listing.id.in_(ids))
         .options(joinedload(Listing.store), joinedload(Listing.product).joinedload(Product.category))
     }
-    return rows[0][1], [_to_listing_out(by_id[listing_id]) for listing_id in ids]
+    return [_to_listing_out(by_id[i]) for i in ids if i in by_id]
 
 
 # Highlights skip discounts that are usually bogus (a "-95%" on a crossed-out
@@ -183,17 +144,16 @@ HIGHLIGHT_MIN_SAVINGS = 5000
 HIGHLIGHT_CANDIDATES = 40
 
 
-def _highlight_score(listing: Listing) -> float:
+def _highlight_score(row: Row) -> float:
     # A -60% on a $400.000 TV beats a -70% on a $3.000 cable: weigh the
     # discount by how much money it actually saves.
-    savings = float(listing.current_original_price) - float(listing.current_price)
-    return float(listing.current_discount_pct) * math.log10(savings)
+    return row.discount_pct * math.log10(row.savings)
 
 
-def _pick_varied(listings: list[Listing], count: int) -> list[Listing]:
+def _pick_varied(listings: list, count: int) -> list:
     """Top `count` listings by score, one per product, spreading across stores
     when the category has enough of them."""
-    picked: list[Listing] = []
+    picked: list = []
     for one_per_store in (True, False):
         for listing in listings:
             if len(picked) == count:
@@ -206,10 +166,10 @@ def _pick_varied(listings: list[Listing], count: int) -> list[Listing]:
     return picked
 
 
-def _travel_sort_key(listing: Listing) -> tuple[float, float]:
+def _travel_sort_key(row: Row) -> tuple[float, float]:
     # Fares usually come as "desde $X" with no crossed-out price: the best deal
     # is the cheapest. Real discounts (during the event) still go first.
-    return (-float(listing.current_discount_pct or 0), float(listing.current_price))
+    return (-(row.discount_pct or 0), row.price)
 
 
 @router.get("/highlights", response_model=list[CategoryHighlightsOut])
@@ -223,58 +183,52 @@ def list_highlights(
                               lambda db: _compute_highlights(db, section, per_category), db)
 
 
+def _travel_candidate_order(row: Row):
+    return ((1, 0.0) if row.discount_pct is None else (0, -row.discount_pct), row.price, row.id)
+
+
+def _deal_candidate_order(row: Row):
+    return (-row.discount_pct, row.id)
+
+
 def _compute_highlights(db: Session, section: str, per_category: int) -> list[CategoryHighlightsOut]:
     travel = section == "viajes"
-    order = (
-        (Listing.current_discount_pct.desc().nulls_last(), Listing.current_price, Listing.id)
-        if travel
-        else (Listing.current_discount_pct.desc(), Listing.id)
-    )
-    rank = func.row_number().over(partition_by=Product.category_id, order_by=order).label("rank")
-    conditions = [listing_is_live(), Product.category_id.is_not(None), section_filter(section)]
-    if not travel:
-        conditions += [
-            Listing.current_discount_pct.between(HIGHLIGHT_MIN_DISCOUNT, HIGHLIGHT_MAX_DISCOUNT),
-            Listing.current_original_price - Listing.current_price >= HIGHLIGHT_MIN_SAVINGS,
-        ]
-    else:
-        conditions.append(Listing.current_price.is_not(None))
-    candidates = select(Listing.id.label("listing_id"), rank).join(Listing.product).where(*conditions).subquery()
-    listings = (
-        db.query(Listing)
-        .join(candidates, candidates.c.listing_id == Listing.id)
-        .filter(candidates.c.rank <= HIGHLIGHT_CANDIDATES)
-        .options(joinedload(Listing.store), joinedload(Listing.product).joinedload(Product.category))
-        .all()
-    )
+    snapshot = catalog.get(db)
+    totals = Counter(r.category_id for r in snapshot.live())
 
-    by_category: dict[int, list[Listing]] = {}
-    for listing in listings:
-        by_category.setdefault(listing.product.category_id, []).append(listing)
-
-    totals = dict(
-        db.query(Product.category_id, func.count(Listing.id))
-        .join(Listing.product)
-        .filter(listing_is_live())
-        .group_by(Product.category_id)
-        .all()
-    )
-
-    highlights = []
-    for category_listings in by_category.values():
+    by_category: dict[int, list[Row]] = {}
+    for r in snapshot.live(section):
+        if r.category_id is None:
+            continue
         if travel:
-            category_listings.sort(key=_travel_sort_key)
+            if r.price is None:
+                continue
+        elif not (r.discount_pct is not None and HIGHLIGHT_MIN_DISCOUNT <= r.discount_pct <= HIGHLIGHT_MAX_DISCOUNT
+                  and r.savings is not None and r.savings >= HIGHLIGHT_MIN_SAVINGS):
+            continue
+        by_category.setdefault(r.category_id, []).append(r)
+
+    picks: dict[int, list[Row]] = {}
+    for category_id, rows in by_category.items():
+        # The best few by discount are the candidates, then the score decides.
+        if travel:
+            candidates = heapq.nsmallest(HIGHLIGHT_CANDIDATES, rows, key=_travel_candidate_order)
+            candidates.sort(key=_travel_sort_key)
         else:
-            category_listings.sort(key=_highlight_score, reverse=True)
-        best = _pick_varied(category_listings, per_category)
-        category = category_listings[0].product.category
-        highlights.append(
-            CategoryHighlightsOut(
-                category=category,
-                total=totals.get(category.id, 0),
-                listings=[_to_listing_out(listing) for listing in best],
-            )
+            candidates = heapq.nsmallest(HIGHLIGHT_CANDIDATES, rows, key=_deal_candidate_order)
+            candidates.sort(key=_highlight_score, reverse=True)
+        picks[category_id] = _pick_varied(candidates, per_category)
+
+    shown = {listing.id: listing for listing in _listings_out(db, [r.id for rows in picks.values() for r in rows])}
+    categories = {c.id: c for c in db.query(Category).filter(Category.id.in_(list(picks)))}
+    highlights = [
+        CategoryHighlightsOut(
+            category=categories[category_id],
+            total=totals.get(category_id, 0),
+            listings=[shown[r.id] for r in rows if r.id in shown],
         )
+        for category_id, rows in picks.items()
+    ]
     if travel:
         highlights.sort(key=lambda h: TRAVEL_CATEGORY_SLUGS.index(h.category.slug))
     else:

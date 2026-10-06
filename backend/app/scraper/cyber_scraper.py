@@ -281,7 +281,7 @@ async def scrape_store(db: Session, client: PoliteClient, scraper: StoreScraper,
                 Listing.is_active.is_(True),
                 Listing.last_seen_at < run_started - SEEN_REFRESH,
             )
-            .update({Listing.is_active: False}, synchronize_session=False)
+            .update({Listing.is_active: False, Listing.updated_at: utcnow()}, synchronize_session=False)
         )
         db.commit()
         logger.info("%s: marked %d listings inactive", scraper.name, stale)

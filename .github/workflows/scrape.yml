@@ -64,6 +64,9 @@ jobs:
     timeout-minutes: 60
     strategy:
       fail-fast: false
+      # The free database shares ~15 connections and little disk I/O; 15 jobs
+      # writing at once left none for the app (Oct 5 2026).
+      max-parallel: 6
       matrix:
         # Big retailers get one job each; the ~200 brand stores are batched
         # into one job per platform (see app/scraper/stores/brand_sites.py).

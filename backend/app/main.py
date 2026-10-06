@@ -5,6 +5,7 @@ from fastapi import FastAPI, Response
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.cache import response_cache
+from app.catalog import catalog
 from app.db import SessionLocal
 from app.routers import admin, favorites, health, listings, products, stores_categories, telegram
 
@@ -15,6 +16,7 @@ app = FastAPI(title="Cyber Ofertas API")
 
 @app.on_event("startup")
 def start_response_cache() -> None:
+    catalog.start()
     response_cache.start()
     # Fill the cache with what the home pages ask for, so the first visit
     # after a deploy or a restart doesn't wait for the database either.
