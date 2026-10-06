@@ -83,3 +83,19 @@ def test_price_drop_on_a_followed_product_dispatches_an_alert(db_session, monkey
     # "b" dropped too but nobody follows it; "c" is new.
     assert dispatched == [("a", 800.0)]
     assert db_session.query(Listing).count() == 3
+
+
+def test_an_unchanged_pass_writes_nothing(db_session):
+    # Rewriting every offer on every pass exhausted the free database's I/O.
+    prices = {f"same-{i}": 5000.0 + i for i in range(20)}
+    scrape(db_session, FakeStore(prices))
+    statements = []
+    listener = lambda *args: statements.append(args[2])  # noqa: E731
+    event.listen(db_session.get_bind(), "before_cursor_execute", listener)
+    try:
+        scrape(db_session, FakeStore(prices))
+    finally:
+        event.remove(db_session.get_bind(), "before_cursor_execute", listener)
+    # The full-sweep cleanup is one statement for the whole store, not per offer.
+    writes = [s for s in statements if s.lstrip().upper().startswith(("UPDATE", "INSERT")) and "last_seen_at <" not in s]
+    assert writes == []

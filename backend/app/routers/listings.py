@@ -2,7 +2,7 @@ import math
 
 from fastapi import APIRouter, Depends, Query, Response
 from sqlalchemy import and_, case, false, func, or_, select
-from sqlalchemy.orm import Session, contains_eager, joinedload
+from sqlalchemy.orm import Session, joinedload
 
 from app.auth import require_auth
 from app.cache import response_cache
@@ -115,12 +115,7 @@ def list_listings(
 
 def _query_listings(db, category, store, search, min_discount, cyber, min_rating, min_price, max_price,
                     section, sort, page, page_size) -> tuple[int, list[ListingOut]]:
-    query = (
-        db.query(Listing)
-        .join(Listing.product)
-        .options(joinedload(Listing.store), contains_eager(Listing.product).joinedload(Product.category))
-        .filter(listing_is_live())
-    )
+    query = db.query(Listing).join(Listing.product).filter(listing_is_live())
 
     if (where := section_filter(section)) is not None:
         query = query.filter(where)
@@ -158,9 +153,26 @@ def _query_listings(db, category, store, search, min_discount, cyber, min_rating
     if max_price is not None:
         query = query.filter(Listing.current_price <= max_price)
 
-    total = query.order_by(None).count()
-    listings = query.order_by(*SORTS[sort]).offset((page - 1) * page_size).limit(page_size).all()
-    return total, [_to_listing_out(listing) for listing in listings]
+    # The total rides along with the page (count(*) over ()), so the live
+    # offers are scanned once instead of once for the count and once more for
+    # the page; the page's rows are then loaded by id.
+    rows = (
+        query.with_entities(Listing.id, func.count().over())
+        .order_by(*SORTS[sort])
+        .offset((page - 1) * page_size)
+        .limit(page_size)
+        .all()
+    )
+    if not rows:
+        return (query.order_by(None).count() if page > 1 else 0), []
+    ids = [listing_id for listing_id, _ in rows]
+    by_id = {
+        listing.id: listing
+        for listing in db.query(Listing)
+        .filter(Listing.id.in_(ids))
+        .options(joinedload(Listing.store), joinedload(Listing.product).joinedload(Product.category))
+    }
+    return rows[0][1], [_to_listing_out(by_id[listing_id]) for listing_id in ids]
 
 
 # Highlights skip discounts that are usually bogus (a "-95%" on a crossed-out

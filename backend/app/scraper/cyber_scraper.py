@@ -22,7 +22,7 @@ import asyncio
 import logging
 import os
 import time
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 
 from sqlalchemy import select
 from sqlalchemy.orm import Session, selectinload
@@ -43,6 +43,12 @@ from app.utils import ensure_aware
 logger = logging.getLogger(__name__)
 
 QUICK_PAGES = int(os.environ.get("SCRAPE_QUICK_PAGES", "2"))
+
+# How stale last_seen_at may get before a pass rewrites it. Bumping it on every
+# pass rewrote ~200k rows every few minutes and exhausted the free database's
+# disk I/O (Oct 5 2026), so an unchanged offer is only written about once an
+# hour. Far below LISTING_STALE_AFTER (24 h), which is what reads it.
+SEEN_REFRESH = timedelta(hours=1)
 
 
 def is_quick_mode() -> bool:
@@ -123,7 +129,9 @@ def upsert_offer(
         listing.title = offer.title
         listing.url = offer.url
         listing.image_url = offer.image_url or listing.image_url
-        listing.last_seen_at = utcnow()
+        now = utcnow()
+        if ensure_aware(listing.last_seen_at) < now - SEEN_REFRESH:
+            listing.last_seen_at = now
         listing.is_active = True
         if offer.brand and not listing.product.brand:
             listing.product.brand = offer.brand
@@ -268,7 +276,11 @@ async def scrape_store(db: Session, client: PoliteClient, scraper: StoreScraper,
     if seen and not failed_departments and not is_quick_mode():
         stale = (
             db.query(Listing)
-            .filter(Listing.store_id == store.id, Listing.is_active.is_(True), Listing.last_seen_at < run_started)
+            .filter(
+                Listing.store_id == store.id,
+                Listing.is_active.is_(True),
+                Listing.last_seen_at < run_started - SEEN_REFRESH,
+            )
             .update({Listing.is_active: False}, synchronize_session=False)
         )
         db.commit()

@@ -25,12 +25,27 @@ def engine_connect_args(url: str) -> dict:
     if url.startswith("sqlite"):
         return {"check_same_thread": False}
     # A transaction pooler hands each transaction a different server
-    # connection, where psycopg's prepared statements wouldn't exist.
-    return {"prepare_threshold": None}
+    # connection, where psycopg's prepared statements wouldn't exist. A busy
+    # pooler can leave a connection attempt hanging: give up and retry later.
+    return {"prepare_threshold": None, "connect_timeout": 15}
+
+
+def engine_pool_args(url: str) -> dict:
+    if url.startswith("sqlite"):
+        return {}
+    # The free database shares ~15 server connections between the API and
+    # 15 parallel scrape jobs; SQLAlchemy's default (up to 15 per process)
+    # let the API alone take them all.
+    return {"pool_size": 3, "max_overflow": 2, "pool_timeout": 30}
 
 
 database_url = normalize_database_url(settings.database_url)
-engine = create_engine(database_url, connect_args=engine_connect_args(database_url), pool_pre_ping=True)
+engine = create_engine(
+    database_url,
+    connect_args=engine_connect_args(database_url),
+    pool_pre_ping=True,
+    **engine_pool_args(database_url),
+)
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 
 
