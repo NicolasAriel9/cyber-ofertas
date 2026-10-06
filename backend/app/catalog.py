@@ -34,6 +34,10 @@ REFRESH = 60
 # Rows are stamped when the scraper flushes them but become visible when it
 # commits, a little later: re-read a margin, re-applying a row is harmless.
 OVERLAP = timedelta(minutes=5)
+# A full re-read now and then (in the background, requests keep the current
+# copy) catches writes that didn't stamp updated_at -- a scrape job started
+# before this code was deployed -- and product category/brand changes.
+FULL_EVERY = 30 * 60
 
 
 def _num(value) -> float | None:
@@ -99,6 +103,7 @@ class Catalog:
         self._store_first_seen: dict[int, float] = {}
         self._brands: dict[str, str] = {}
         self._since: datetime | None = None
+        self._full_at = 0.0
         self._snapshot: Snapshot | None = None
         self._lock = threading.Lock()
 
@@ -123,6 +128,8 @@ class Catalog:
             time.sleep(REFRESH)
             if self._snapshot is None:
                 continue
+            if time.monotonic() - self._full_at > FULL_EVERY:
+                self._since = None
             try:
                 with self._lock, SessionLocal() as db:
                     self._load(db)
@@ -140,6 +147,8 @@ class Catalog:
             count += 1
             self._apply(r)
         self._since = next_since
+        if since is None:
+            self._full_at = time.monotonic()
         self._publish(db)
         if since is None or count:
             log.info("catalog: %s %d rows in %.1fs (%d live)", "read" if since is None else "updated", count,
