@@ -20,7 +20,11 @@ services:
     plan: free
     region: ohio
     rootDir: backend
-    buildCommand: pip install -r requirements.txt && alembic upgrade head
+    # Migrations don't run here: on Oct 6 2026 the build kept failing on the
+    # throttled database (lock waits, statement timeouts, and alembic crashing
+    # with a segfault while connecting). The scraper's falabella job applies
+    # them before every pass (.github/workflows/scrape.yml).
+    buildCommand: pip install -r requirements.txt
     startCommand: uvicorn app.main:app --host 0.0.0.0 --port $PORT
     healthCheckPath: /healthz
     # Secrets live on the service itself: Render ignores `sync: false` inside
